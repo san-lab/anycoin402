@@ -1,0 +1,106 @@
+1) Resource request and 402 response: 
+```Request-----------------                                                                                                                           From:  127.0.0.1:49510                                                   
+GET   /weather                                                           
+Accept   application/json, text/plain, */*
+User-Agent   axios/1.8.4  
+Accept-Encoding   gzip, compress, deflate, br
+Connection   keep-alive                                                  
+                                                                                                                                                   Response------------------                                                                                                                         
+402 Payment Required                                                     
+Etag   W/"17c-YiNqSEQ/t8qBJj4zS0SpyPGYtq8"
+Date   Wed, 14 May 2025 07:17:38 GMT 
+Connection   keep-alive
+Keep-Alive   timeout=5                                                   
+X-Powered-By   Express
+Content-Type   application/json; charset=utf-8 
+Content-Length   380
+{"x402Version":1,"error":"X-PAYMENT header is required","accepts":[{"scheme":"exact","network":"base-sepolia","maxAmountRequired":"1000","resource"
+:"http://localhost:4021/weather","description":"","mimeType":"","payTo":"0xCEF702Bd69926B13ab7150624daA7aFEE0300786","maxTimeoutSeconds":60,"asset"
+:"0x036CbD53842c5426634e7929541eC2318f3dCF7e","extra":{"name":"USDC","version":"2"}}]}```
+
+2) Resource request with Payment:
+```Request-----------------
+From:  127.0.0.1:49510
+GET   /weather
+Connection   keep-alive
+Accept   application/json, text/plain, */*
+User-Agent   axios/1.8.4
+Accept-Encoding   gzip, compress, deflate, br
+X-Payment   eyJ4NDAyVmVyc2lvbiI6MSwic2NoZW1lIjoiZXhhY3QiLCJuZXR3b3JrIjoiYmFzZS1zZXBvbGlhIiwicGF5bG9hZCI6eyJzaWduYXR1cmUiOiIweGNjNWQ5Njc2NTcxMmNhMGY
+0ZTA4MWE2MmNiMTA1MzMxN2Y1MjRmODczZjQ5MzFhMjVjMDYzMTQxMTE0M2JmNmMzYjRmZTRlZDM4ZDUxMWI1MmY4ZjVhZDkyZTJjZDI1MTFhNDY3MzU1NjU5OGU1OGFjNTM2OGE3M2VjOWQ2Nz
+FhMWMiLCJhdXRob3JpemF0aW9uIjp7ImZyb20iOiIweGFhYjA1NTU4NDQ4QzhhOTU5NzI4N0RiOUY2MWUyZDc1MTY0NUIxMmEiLCJ0byI6IjB4Q0VGNzAyQmQ2OTkyNkIxM2FiNzE1MDYyNGRhQ
+TdhRkVFMDMwMDc4NiIsInZhbHVlIjoiMTAwMCIsInZhbGlkQWZ0ZXIiOiIxNzQ3MjA2OTk4IiwidmFsaWRCZWZvcmUiOiIxNzQ3MjA3MTE4Iiwibm9uY2UiOiIweGZkYzdiNWJkZDRjN2I3NmZl
+OGI3N2VhMWI1MzkzZDc5ZDk0OTk1NGUxMzkzNDc3OGQyMTZiYjI3NmViYmUwMDUifX19
+Access-Control-Expose-Headers   X-PAYMENT-RESPONSE```
+
+3) Verify call to the facilitator
+```Request-----------------       
+From:  127.0.0.1:50026  
+POST   /facilitator/verify
+Accept-Encoding   gzip, compress, deflate, br
+Connection   keep-alive
+Accept   application/json, text/plain, */*                                                                                                         Content-Type   application/json                                                                                                                    User-Agent   axios/1.8.4                                                                                                                           Content-Length   852                                                                                                                               {"x402Version":1,"paymentPayload":{"x402Version":1,"scheme":"exact","network":"base-sepolia","payload":{"signature":"0xcc5d96765712ca0f4e081a62cb1053317f524f873f4931a25c0631411143bf6c3b4fe4ed38d511b52f8f5ad92e2cd2511a4673556598e58ac5368a73ec9d671a1c","authorization":{"from":"0xaab05558448C8a95
+97287Db9F61e2d751645B12a","to":"0xCEF702Bd69926B13ab7150624daA7aFEE0300786","value":"1000","validAfter":"1747206998","validBefore":"1747207118","no
+nce":"0xfdc7b5bdd4c7b76fe8b77ea1b5393d79d949954e13934778d216bb276ebbe005"}}},"paymentRequirements":{"scheme":"exact","network":"base-sepolia","maxA
+mountRequired":"1000","resource":"http://localhost:4021/weather","description":"","mimeType":"","payTo":"0xCEF702Bd69926B13ab7150624daA7aFEE0300786
+","maxTimeoutSeconds":60,"asset":"0x036CbD53842c5426634e7929541eC2318f3dCF7e","extra":{"name":"USDC","version":"2"}}}
+Response------------------
+200 OK                                                                   
+Server   Vercel                
+Strict-Transport-Security   max-age=63072000
+X-Vercel-Cache   MISS                                                    
+Cache-Control   public, max-age=0, must-revalidate        
+Content-Type   application/json                                                                                                                    Date   Wed, 14 May 2025 07:17:40 GMT 
+X-Matched-Path   /facilitator/verify 
+X-Vercel-Id   cdg1::iad1::ztmsk-1747207059878-66e4f63aa059
+{"isValid":true,"payer":"0xaab05558448C8a9597287Db9F61e2d751645B12a"}
+```
+
+4) Settle call to the facilitator
+```Request-----------------
+From:  127.0.0.1:50026
+POST   /facilitator/settle
+Accept   application/json, text/plain, */*
+Content-Type   application/json
+User-Agent   axios/1.8.4
+Content-Length   852
+Accept-Encoding   gzip, compress, deflate, br
+Connection   keep-alive
+{"x402Version":1,"paymentPayload":{"x402Version":1,"scheme":"exact","network":"base-sepolia","payload":{"signature":"0xcc5d96765712ca0f4e081a62cb10
+53317f524f873f4931a25c0631411143bf6c3b4fe4ed38d511b52f8f5ad92e2cd2511a4673556598e58ac5368a73ec9d671a1c","authorization":{"from":"0xaab05558448C8a95
+97287Db9F61e2d751645B12a","to":"0xCEF702Bd69926B13ab7150624daA7aFEE0300786","value":"1000","validAfter":"1747206998","validBefore":"1747207118","no
+nce":"0xfdc7b5bdd4c7b76fe8b77ea1b5393d79d949954e13934778d216bb276ebbe005"}}},"paymentRequirements":{"scheme":"exact","network":"base-sepolia","maxA
+mountRequired":"1000","resource":"http://localhost:4021/weather","description":"","mimeType":"","payTo":"0xCEF702Bd69926B13ab7150624daA7aFEE0300786
+","maxTimeoutSeconds":60,"asset":"0x036CbD53842c5426634e7929541eC2318f3dCF7e","extra":{"name":"USDC","version":"2"}}}
+Response------------------
+200 OK
+Date   Wed, 14 May 2025 07:17:44 GMT 
+Strict-Transport-Security   max-age=63072000
+X-Vercel-Cache   MISS
+Cache-Control   public, max-age=0, must-revalidate
+Content-Type   application/json
+Server   Vercel
+X-Matched-Path   /facilitator/settle 
+X-Vercel-Id   cdg1::iad1::wgw4c-1747207060530-6c376979afc3
+{"success":true,"transaction":"0x5bb66b15d0dfcaa8ae350c59d6c52f9268a558115baaa2fc1ad530665b1b553a","network":"base-sepolia","payer":"0xaab05558448C
+8a9597287Db9F61e2d751645B12a"}
+```
+
+5) Final response to the buyer
+```Response------------------
+200 OK
+Etag   W/"2f-iov7VJQQAdBSRAJH1XVvoxAxAIs"
+X-Payment-Response   eyJzdWNjZXNzIjp0cnVlLCJ0cmFuc2FjdGlvbiI6IjB4NWJiNjZiMTVkMGRmY2FhOGFlMzUwYzU5ZDZjNTJmOTI2OGE1NTgxMTViYWFhMmZjMWFkNTMwNjY1YjFiNT
+UzYSIsIm5ldHdvcmsiOiJiYXNlLXNlcG9saWEiLCJwYXllciI6IjB4YWFiMDU1NTg0NDhDOGE5NTk3Mjg3RGI5RjYxZTJkNzUxNjQ1QjEyYSJ9
+Date   Wed, 14 May 2025 07:17:43 GMT 
+Connection   keep-alive
+Keep-Alive   timeout=5
+X-Powered-By   Express
+Content-Type   application/json; charset=utf-8
+Content-Length   47
+{"report":{"weather":"sunny","temperature":70}}```
+
+
+
+
+
