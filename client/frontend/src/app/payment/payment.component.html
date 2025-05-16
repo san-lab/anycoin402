@@ -1,0 +1,11 @@
+<section>
+    <div class="card">
+      <h1>Payment Required</h1>
+      <p>Access to protected content. To access this content, please pay $0.01 Base Sepolia USDC.</p>
+      <button mat-button (click)="signEIP712()" class="primary" type="button">Connect Wallet</button>
+    </div>
+    <div class="signature">
+      <h2> Signature</h2>
+      <p> {{ viewResult }}</p>
+    </div>
+  </section>
