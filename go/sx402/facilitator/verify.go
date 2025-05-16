@@ -72,6 +72,9 @@ func Start() {
 	router := gin.Default()
 
 	// Define the endpoint
+	router.GET("/facilitator", func(c *gin.Context) {
+		c.Writer.WriteString("You probaply want to use POST method")
+	})
 	router.POST("/facilitator/verify", verifyHandler)
 	router.GET("/", func(c *gin.Context) {
 		c.Writer.WriteString("Hello there!")
