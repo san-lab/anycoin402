@@ -1,0 +1,21 @@
+package evmbinding
+
+import (
+	"fmt"
+	"testing"
+
+	"github.com/ethereum/go-ethereum/common"
+)
+
+var BaseSepoliaUSDCAddress = common.HexToAddress("0x036CbD53842c5426634e7929541eC2318f3dCF7e")
+var BaseSepoliaEURSAddress = common.HexToAddress("0x6Ac14e603A2742fB919248D66c8ecB05D8Aec1e9")
+
+var boss = common.HexToAddress("0xaab05558448C8a9597287Db9F61e2d751645B12a")
+
+func TestGetBalance(t *testing.T) {
+	b, e := CheckTokenBalance(base_sepolia, BaseSepoliaUSDCAddress, boss)
+	if e != nil {
+		t.Error(e)
+	}
+	fmt.Printf("The balance of %s at token %s is %v", boss, BaseSepoliaUSDCAddress, b)
+}
