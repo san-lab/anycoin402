@@ -2,8 +2,10 @@ package evmbinding
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -18,4 +20,13 @@ func TestGetBalance(t *testing.T) {
 		t.Error(e)
 	}
 	fmt.Printf("The balance of %s at token %s is %v", boss, BaseSepoliaUSDCAddress, b)
+}
+
+func TestParseTrAuth(t *testing.T) {
+	parsedABI, err := abi.JSON(strings.NewReader(trWithAuthABI))
+	if err != nil {
+		t.Error(err)
+	}
+	fmt.Println(parsedABI)
+
 }

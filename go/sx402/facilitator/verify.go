@@ -30,6 +30,12 @@ func verifyHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON: " + err.Error()})
 		return
 	}
+	if payload.X402Version < 1 {
+		reason := "Incomplete JSON/Nil Version"
+		response.InvalidReason = &reason
+		c.JSON(http.StatusBadRequest, response)
+	}
+
 	sig := payload.PaymentPayload.Payload.Signature
 	auth := payload.PaymentPayload.Payload.Authorization
 	einfo := ExtraInfo{}
@@ -98,6 +104,7 @@ func Start() {
 		c.Writer.WriteString("You probably want to use POST method for your action: " + c.Param("action"))
 	})
 	router.POST("/facilitator/verify", verifyHandler)
+	router.POST("/facilitator/settle", SettleHandler)
 	router.GET("/", func(c *gin.Context) {
 		c.Writer.WriteString("Hello there!")
 	})

@@ -2,6 +2,7 @@ package evmbinding
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"log"
@@ -12,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
@@ -129,6 +131,80 @@ func CheckAuthorizationState(network string, tokenAddress, payer common.Address,
 	return known, err
 }
 
+func TransferWithAuthorization(
+	network string,
+	signer *ecdsa.PrivateKey,
+	token, from, to common.Address,
+	value, validAfter, validBefore *big.Int,
+	nonce, r, s [32]byte,
+	v byte,
+) (*common.Hash, error) {
+	// Parse ABI
+	parsedABI, err := abi.JSON(strings.NewReader(trWithAuthABI))
+	if err != nil {
+		return nil, err
+	}
+
+	// Pack the input (balanceOf(address))
+	data, err := parsedABI.Pack("transferWithAuthorization", from, to, value, validAfter, validBefore, nonce, v, r, s)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to pack data: %w", err)
+	}
+
+	facilAddress := crypto.PubkeyToAddress(signer.PublicKey)
+
+	url, ok := rpcendpoints[network]
+	if !ok {
+		return nil, errors.New("Unknown network: " + network)
+	}
+
+	client, err := ethclient.Dial(url)
+	if err != nil {
+		return nil, fmt.Errorf("could not connect to rpc: %v", err)
+	}
+
+	// Get nonce for transaction
+	fromNonce, err := client.PendingNonceAt(context.Background(), facilAddress)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	gasPrice, err := client.SuggestGasPrice(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Estimate gas
+	gasLimit := uint64(100000) // or estimate with client.EstimateGas()
+
+	tx := types.NewTransaction(
+		fromNonce,
+		token,
+		big.NewInt(0), // No ETH being sent
+		gasLimit,
+		gasPrice,
+		data,
+	)
+
+	chainID, err := client.ChainID(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("error recoovering ChainID: %w", err)
+	}
+	// Sign transaction
+	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), signer)
+	if err != nil {
+		return nil, fmt.Errorf("error signing transaction: %w", err)
+	}
+
+	err = client.SendTransaction(context.Background(), signedTx)
+	if err != nil {
+		return nil, fmt.Errorf("could not send tx: %v", err)
+	}
+	h := signedTx.Hash()
+	return &h, nil
+
+}
+
 const tokenABI = `[
   {
     "constant": true,
@@ -150,3 +226,22 @@ const tokenABI = `[
     "type": "function"
   }
 ]`
+
+const trWithAuthABI = `[{
+	"constant": false,
+	"inputs": [
+	  { "name": "from", "type": "address" },
+	  { "name": "to", "type": "address" },
+	  { "name": "value", "type": "uint256" },
+	  { "name": "validAfter", "type": "uint256" },
+	  { "name": "validBefore", "type": "uint256" },
+	  { "name": "nonce", "type": "bytes32" },
+	  { "name": "v", "type": "uint8" },
+	  { "name": "r", "type": "bytes32" },
+	  { "name": "s", "type": "bytes32" }
+	],
+	"name": "transferWithAuthorization",
+	"outputs": [],
+	"stateMutability": "nonpayable",
+	"type": "function"
+  }]`
