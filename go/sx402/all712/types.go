@@ -122,8 +122,11 @@ func VerifyTransferWithAuthorizationSignature(
 	isValid := (recoveredAddr.Hex() == auth.From)
 	log.Println("Recovered:", recoveredAddr)
 	log.Println("From:", auth.From)
+	if !isValid {
+		return false, recoveredAddr, fmt.Errorf("Recovered address differ: %s", recoveredAddr.Hex())
+	}
 
-	return isValid, recoveredAddr, nil
+	return true, recoveredAddr, nil
 }
 
 func MakeDomainSeparator(name, version string, chainID *big.Int, verifyingContract common.Address) common.Hash {

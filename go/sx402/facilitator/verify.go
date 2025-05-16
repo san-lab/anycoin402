@@ -51,6 +51,14 @@ func verifyHandler(c *gin.Context) {
 		big.NewInt(84532), asset)
 	ph := payer.Hex()
 	response.Payer = &ph
+
+	if !ok || err != nil {
+		reason := err.Error()
+		response.InvalidReason = &reason
+		c.JSON(http.StatusOK, response)
+		return
+	}
+
 	noncesl, _ := hex.DecodeString(payload.PaymentPayload.Payload.Authorization.Nonce[2:])
 	var nonce [32]byte
 	copy(nonce[:], noncesl)
