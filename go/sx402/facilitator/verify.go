@@ -79,7 +79,7 @@ func Start() {
 
 	router.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Route not found",
+			"error": "Route not found", "path": c.Request.RequestURI,
 		})
 	})
 

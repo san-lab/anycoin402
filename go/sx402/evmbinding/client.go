@@ -81,6 +81,50 @@ func CheckTokenBalance(network string, tokenAddress, ownerAddress common.Address
 	return balance, err
 }
 
+// Returns if the nonce is "known"
+func CheckAuthorizationState(network string, tokenAddress, payer common.Address, nonce [32]byte) (bool, error) {
+	url, ok := rpcendpoints[network]
+	if !ok {
+		return false, errors.New("Unknown network: " + network)
+	}
+
+	client, err := ethclient.Dial(url)
+	if err != nil {
+		return false, fmt.Errorf("could not connect to rpc: %v", err)
+	}
+
+	// Parse ABI
+	parsedABI, err := abi.JSON(strings.NewReader(tokenABI))
+	if err != nil {
+		return false, fmt.Errorf("Failed to parse ABI: %v", err)
+	}
+
+	// Pack the input (balanceOf(address))
+	data, err := parsedABI.Pack("authorizationState", payer, nonce)
+	if err != nil {
+		log.Fatalf("Failed to pack data: %v", err)
+	}
+
+	// Prepare the call message
+	msg := ethereum.CallMsg{
+		To:   &tokenAddress,
+		Data: data,
+	}
+
+	// Call the contract
+	ctx := context.Background()
+	result, err := client.CallContract(ctx, msg, nil)
+	if err != nil {
+		log.Fatalf("Failed to call contract: %v", err)
+	}
+
+	// Unpack the result
+	var known bool
+	err = parsedABI.UnpackIntoInterface(&known, "authorizationState", result)
+
+	return known, err
+}
+
 const tokenABI = `[
   {
     "constant": true,
