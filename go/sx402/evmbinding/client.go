@@ -119,8 +119,12 @@ func CheckAuthorizationState(network string, tokenAddress, payer common.Address,
 	}
 
 	// Unpack the result
-	var known bool
-	err = parsedABI.UnpackIntoInterface(&known, "authorizationState", result)
+
+	unpacked, err := parsedABI.Unpack("authorizationState", result)
+	known, ok := unpacked[0].(bool)
+	if !ok {
+		log.Fatalf("Unpacked result is not a bool")
+	}
 
 	return known, err
 }

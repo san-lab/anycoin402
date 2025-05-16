@@ -1,7 +1,9 @@
 package facilitator
 
 import (
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"net/http"
 
@@ -22,6 +24,7 @@ type ExtraInfo map[string]string
 
 func verifyHandler(c *gin.Context) {
 	var payload Envelope
+	response := types.VerifyResponse{}
 
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON: " + err.Error()})
@@ -32,7 +35,9 @@ func verifyHandler(c *gin.Context) {
 	einfo := ExtraInfo{}
 	err := json.Unmarshal(*payload.PaymentRequirements.Extra, &einfo)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Extra info: " + err.Error()})
+		reason := "Invalid ExtraInfo"
+		response.InvalidReason = &reason
+		c.JSON(http.StatusBadRequest, response)
 		return
 	}
 	asset := common.HexToAddress(payload.PaymentRequirements.Asset)
@@ -44,28 +49,37 @@ func verifyHandler(c *gin.Context) {
 
 	ok, payer, err := all712.VerifyTransferWithAuthorizationSignature(sig, *auth, einfo["name"], einfo["version"],
 		big.NewInt(84532), asset)
+	ph := payer.Hex()
+	response.Payer = &ph
+	noncesl, _ := hex.DecodeString(payload.PaymentPayload.Payload.Authorization.Nonce[2:])
+	var nonce [32]byte
+	copy(nonce[:], noncesl)
+
+	known, err := evmbinding.CheckAuthorizationState(payload.PaymentRequirements.Network, asset, payer, nonce)
+	if known {
+		reason := "Nonce already used"
+		response.InvalidReason = &reason
+		c.JSON(http.StatusOK, response)
+		return
+	}
 
 	balance, err := evmbinding.CheckTokenBalance(payload.PaymentPayload.Network, asset, payer)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"Formal verification": ok,
+		c.JSON(http.StatusInternalServerError, gin.H{"Formal verification": ok,
 			"Unable to check the balance": err,
 		})
 		return
 	}
 
 	if amount.Cmp(balance) == 0 {
-		c.JSON((http.StatusNotAcceptable), gin.H{"Insufficient balance": balance})
+		reason := fmt.Sprintf("Insufficient balance: %v", balance)
+		response.InvalidReason = &reason
+		c.JSON(http.StatusOK, response)
 		return
 	}
 
-	// You can now use `payload` here
-	c.JSON(http.StatusOK, gin.H{
-		"message":   "Payload received",
-		"signature": ok,
-		"payer":     payer,
-		"balance":   "sufficient",
-		"nonce":     "fresh",
-	})
+	response.IsValid = true
+	c.JSON(http.StatusOK, response)
 }
 
 func Start() {
