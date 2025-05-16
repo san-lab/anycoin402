@@ -84,5 +84,5 @@ func Start() {
 	})
 
 	// Start the server
-	router.Run("3010")
+	router.Run(":3010")
 }
