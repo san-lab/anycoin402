@@ -1,0 +1,22 @@
+version: '3.2'
+
+services:
+
+  frontend:
+    image: nginx
+    ports:
+     - "4200:80"
+    volumes:
+      - type: bind
+        source: ./frontend/dist/first-app/browser
+        target: /etc/nginx/templates
+      - type: bind
+        source: ./nginx.conf
+        target: /etc/nginx/nginx.conf
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "500k"
+        max-file: "10"
+
+  

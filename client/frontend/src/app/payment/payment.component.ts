@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 import { MetaMaskSDK } from "@metamask/sdk"
-import {MatButtonModule} from '@angular/material/button';
+import { MatButtonModule } from '@angular/material/button';
 
 const MMSDK = new MetaMaskSDK({
   dappMetadata: {
