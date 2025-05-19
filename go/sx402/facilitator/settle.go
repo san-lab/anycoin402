@@ -10,7 +10,9 @@ import (
 	"github.com/coinbase/x402/go/pkg/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/gin-gonic/gin"
+	"github.com/san-lab/sx402/all712"
 	"github.com/san-lab/sx402/evmbinding"
 )
 
@@ -18,14 +20,21 @@ func SettleHandler(c *gin.Context) {
 
 	response := types.SettleResponse{}
 
-	var payload Envelope
-
-	if err := c.ShouldBindJSON(&payload); err != nil {
-		reason := "error: Invalid JSON: " + err.Error()
-		response.ErrorReason = &reason
-		c.JSON(http.StatusBadRequest, response)
+	enlp, exists := c.Get("envelope")
+	if !exists {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Envelope not found"})
 		return
 	}
+	payload := enlp.(all712.Envelope)
+
+	clnt, exists := c.Get("client")
+	if !exists {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "No Client from middleware"})
+		return
+	}
+
+	client := clnt.(*ethclient.Client)
+
 	response.Network = payload.PaymentPayload.Network
 
 	var from, to, tokenAddress common.Address
@@ -90,7 +99,7 @@ func SettleHandler(c *gin.Context) {
 	privkeyhex := "56c11c2fee673894e85151857339066cd244d4932f23e660ce8502c867d0927e"
 	signer, _ := crypto.HexToECDSA(privkeyhex)
 
-	h, err := evmbinding.TransferWithAuthorization(response.Network, signer, tokenAddress, from, to, value, validAfter, validBefore, nonce, r, s, v)
+	h, err := evmbinding.TransferWithAuthorization(client, signer, tokenAddress, from, to, value, validAfter, validBefore, nonce, r, s, v)
 
 	if err != nil {
 		reason := fmt.Sprintf("Error parsing ABI: %s", err.Error())

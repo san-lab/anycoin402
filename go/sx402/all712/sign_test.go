@@ -3,7 +3,9 @@ package all712
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"log"
+	"math/big"
 	"testing"
 
 	"github.com/coinbase/x402/go/pkg/types"
@@ -22,7 +24,7 @@ func TestSignature(t *testing.T) {
 
 	}
 
-	nonce := crypto.Keccak256Hash([]byte("FifthNonce"))
+	nonce := crypto.Keccak256Hash([]byte("SixthNonce"))
 	log.Printf("nonce: 0x%x\n", nonce)
 	tokenName := "EURO_S"
 
@@ -44,6 +46,7 @@ func TestSignature(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+
 	log.Printf("0x%x\n", sig)
 	log.Printf("sig: r: 0x%x, s: 0x%x v: 0x%x\n", sig[:32], sig[32:64], sig[64]+27)
 
@@ -75,8 +78,25 @@ func TestAddSignature(t *testing.T) {
 		t.Error(err)
 	}
 
-	b, _ := json.MarshalIndent(ppld, " ", " ")
-	log.Println(string(b))
+	envlp := new(Envelope)
+	envlp.PaymentPayload = ppld
+	envlp.PaymentRequirements = preq
+	envlp.X402Version = 1
+
+	curlstr := "curl $X402_URL -d '%s'\n"
+	ebts, _ := json.Marshal(envlp)
+	fmt.Printf(curlstr, string(ebts))
+
+	extra := map[string]string{}
+	err = json.Unmarshal(*preq.Extra, &extra)
+	if err != nil {
+		t.Error(err)
+	}
+	ok, recovered, err := VerifyTransferWithAuthorizationSignature(ppld.Payload.Signature, *ppld.Payload.Authorization, extra["name"], extra["version"], big.NewInt(84532), common.HexToAddress(preq.Asset))
+	if err != nil {
+		t.Error(err)
+	}
+	log.Println(ok, "recovered payer: ", recovered)
 }
 
 const somePayReqs = `{"scheme":"exact","network":"base-sepolia","maxAmountRequired":"15000","resource":"http://localhost:4021/weather","description":"","mimeType":"","payTo":"0x64A8303112D05027F1f1d4ed7e54482799861db0","maxTimeoutSeconds":60,"asset":"0x6Ac14e603A2742fB919248D66c8ecB05D8Aec1e9","extra":{"name":"EURO_S","version":"2"}}`

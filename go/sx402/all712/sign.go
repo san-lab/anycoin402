@@ -6,18 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/coinbase/x402/go/pkg/types"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
-
-var eip712DomainTypeHash = crypto.Keccak256Hash([]byte("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"))
-var transferTypeHash = crypto.Keccak256Hash([]byte("TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)"))
 
 var endOfMay = big.NewInt(1748735999)
 var may13th = big.NewInt(1747130688)
@@ -33,37 +29,6 @@ func SignERC3009Authorization(
 	tokenVersion string,
 	tokenAddress common.Address,
 ) ([]byte, error) {
-
-	// --- Domain separator ---
-	domainArgs := abi.Arguments{
-		{Type: mustNewType("bytes32")},
-		{Type: mustNewType("bytes32")},
-		{Type: mustNewType("bytes32")},
-		{Type: mustNewType("uint256")},
-		{Type: mustNewType("address")},
-	}
-	domainPacked, err := domainArgs.Pack(
-		eip712DomainTypeHash,
-		crypto.Keccak256Hash([]byte(tokenName)),
-		crypto.Keccak256Hash([]byte(tokenVersion)),
-		chainID,
-		tokenAddress,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to pack domain separator: %v", err)
-	}
-	domainSeparator := crypto.Keccak256Hash(domainPacked)
-	log.Println("Domain Separator:", domainSeparator)
-	// --- Struct hash for TransferWithAuthorization ---
-	transferArgs := abi.Arguments{
-		{Type: mustNewType("bytes32")},
-		{Type: mustNewType("address")},
-		{Type: mustNewType("address")},
-		{Type: mustNewType("uint256")},
-		{Type: mustNewType("uint256")},
-		{Type: mustNewType("uint256")},
-		{Type: mustNewType("bytes32")},
-	}
 
 	from := common.HexToAddress(auth.From)
 	to := common.HexToAddress(auth.To)
@@ -82,7 +47,7 @@ func SignERC3009Authorization(
 		return nil, errors.New("error parsing validBefore")
 	}
 
-	snonce, err := hex.DecodeString(auth.Nonce)
+	snonce, err := hex.DecodeString(strings.TrimPrefix(auth.Nonce, "0x"))
 	if err != nil {
 		return nil, errors.New("Wrong nonce: " + auth.Nonce)
 	}
@@ -90,27 +55,11 @@ func SignERC3009Authorization(
 	var nonce [32]byte
 	copy(nonce[:], snonce)
 
-	transferPacked, err := transferArgs.Pack(
-		transferTypeHash,
-		from,
-		to,
-		value,
-		validAfter,
-		validBefore,
-		nonce,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to pack struct hash: %v", err)
-	}
-	structHash := crypto.Keccak256Hash(transferPacked)
-
-	// --- Final EIP-712 digest ---
-	prefix := []byte{0x19, 0x01}
-	eip712Bytes := append(prefix, append(domainSeparator.Bytes(), structHash.Bytes()...)...)
-	digest := crypto.Keccak256Hash(eip712Bytes)
+	digest, err := EIP721Hash(from, to, tokenAddress, value, validAfter, validBefore, chainID, nonce, tokenName, tokenVersion)
 
 	// --- Sign ---
-	signature, err := crypto.Sign(digest.Bytes(), privateKey)
+	signature, err := crypto.Sign(digest, privateKey)
+
 	signature[64] += 27
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign digest: %v", err)
@@ -146,9 +95,9 @@ func AddAuthorizationSignature(paymentReqs *types.PaymentRequirements, from_key 
 	if !ok {
 		return nil, errors.New("Unknown network: " + ppld.Network)
 	}
-
-	nonce := crypto.Keccak256([]byte{42})
-	ppld.Payload.Authorization.Nonce = hex.EncodeToString(nonce)
+	timestring := time.ANSIC
+	nonce := crypto.Keccak256([]byte(timestring))
+	ppld.Payload.Authorization.Nonce = "0x" + hex.EncodeToString(nonce)
 	auth := Authorization(*ppld.Payload.Authorization)
 	bts, err := SignERC3009Authorization(&auth, from_key, chainID, extra["name"], extra["version"], asset)
 	if err != nil {

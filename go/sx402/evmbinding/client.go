@@ -3,7 +3,6 @@ package evmbinding
 import (
 	"context"
 	"crypto/ecdsa"
-	"errors"
 	"fmt"
 	"log"
 	"math/big"
@@ -19,20 +18,11 @@ import (
 
 const base_sepolia = "base-sepolia"
 
-var rpcendpoints = map[string]string{base_sepolia: "https://sepolia.base.org"}
-var baseSepoliaChainId = 84532
+var RpcEndpoints = map[string]string{base_sepolia: "https://sepolia.base.org"}
 
-func SendTransaction(network string, signedTx *types.Transaction) (*common.Hash, error) {
-	url, ok := rpcendpoints[network]
-	if !ok {
-		return nil, errors.New("Unknown network: " + network)
-	}
+func SendTransaction(client *ethclient.Client, signedTx *types.Transaction) (*common.Hash, error) {
 
-	client, err := ethclient.Dial(url)
-	if err != nil {
-		return nil, fmt.Errorf("could not connect to rpc: %v", err)
-	}
-	err = client.SendTransaction(context.Background(), signedTx)
+	err := client.SendTransaction(context.Background(), signedTx)
 	if err != nil {
 		return nil, fmt.Errorf("could not send tx: %v", err)
 	}
@@ -40,16 +30,7 @@ func SendTransaction(network string, signedTx *types.Transaction) (*common.Hash,
 	return &h, nil
 }
 
-func CheckTokenBalance(network string, tokenAddress, ownerAddress common.Address) (*big.Int, error) {
-	url, ok := rpcendpoints[network]
-	if !ok {
-		return nil, errors.New("Unknown network: " + network)
-	}
-
-	client, err := ethclient.Dial(url)
-	if err != nil {
-		return nil, fmt.Errorf("could not connect to rpc: %v", err)
-	}
+func CheckTokenBalance(client *ethclient.Client, tokenAddress, ownerAddress common.Address) (*big.Int, error) {
 
 	// Parse ABI
 	parsedABI, err := abi.JSON(strings.NewReader(tokenABI))
@@ -84,17 +65,7 @@ func CheckTokenBalance(network string, tokenAddress, ownerAddress common.Address
 }
 
 // Returns if the nonce is "known"
-func CheckAuthorizationState(network string, tokenAddress, payer common.Address, nonce [32]byte) (bool, error) {
-	url, ok := rpcendpoints[network]
-	if !ok {
-		return false, errors.New("Unknown network: " + network)
-	}
-
-	client, err := ethclient.Dial(url)
-	if err != nil {
-		return false, fmt.Errorf("could not connect to rpc: %v", err)
-	}
-
+func CheckAuthorizationState(client *ethclient.Client, tokenAddress, payer common.Address, nonce [32]byte) (bool, error) {
 	// Parse ABI
 	parsedABI, err := abi.JSON(strings.NewReader(tokenABI))
 	if err != nil {
@@ -132,7 +103,7 @@ func CheckAuthorizationState(network string, tokenAddress, payer common.Address,
 }
 
 func TransferWithAuthorization(
-	network string,
+	client *ethclient.Client,
 	signer *ecdsa.PrivateKey,
 	token, from, to common.Address,
 	value, validAfter, validBefore *big.Int,
@@ -152,16 +123,6 @@ func TransferWithAuthorization(
 	}
 
 	facilAddress := crypto.PubkeyToAddress(signer.PublicKey)
-
-	url, ok := rpcendpoints[network]
-	if !ok {
-		return nil, errors.New("Unknown network: " + network)
-	}
-
-	client, err := ethclient.Dial(url)
-	if err != nil {
-		return nil, fmt.Errorf("could not connect to rpc: %v", err)
-	}
 
 	// Get nonce for transaction
 	fromNonce, err := client.PendingNonceAt(context.Background(), facilAddress)
