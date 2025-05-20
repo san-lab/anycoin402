@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>X402 Demo Store</title>
+    <style>
+        body {
+            font-family: sans-serif;
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+        li {
+            margin: 8px 0;
+        }
+        a {
+            color: blue;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        /* Modal styling */
+        #errorModal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        #modalContent {
+            background-color: white;
+            margin: 10% auto;
+            padding: 20px;
+            width: 50%;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+        button {
+            margin-top: 20px;
+            padding: 8px 16px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Welcome to the X402 Demo Store</h1>
+    <p>Select a resource to access:</p>
+
+    <ul>
+        <li><a href="/resources?RESID=1" class="resource-link">First Resource</a></li>
+        <li><a href="/resources?RESID=2" class="resource-link">Second Resource</a></li>
+        <li><a href="/resources?RESID=3" class="resource-link">Third Resource</a></li>
+    </ul>
+
+    <!-- Modal -->
+    <div id="errorModal">
+        <div id="modalContent">
+            <h2>Payment Required</h2>
+            <p id="errorText"></p>
+            <p id="paymentDetails" style="font-weight: bold;"></p>
+
+            <div style="margin-top: 20px;">
+                <button id="authorizeBtn">Authorize Payment</button>
+                <button onclick="document.getElementById('errorModal').style.display='none'">Cancel</button>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        document.querySelectorAll(".resource-link").forEach(link => {
+            link.addEventListener("click", function(event) {
+                event.preventDefault();
+                const url = this.href;
+
+                fetch(url, {
+                    headers: {
+                        // 'Payment': 'your_payment_token_here'
+                    }
+                })
+                .then(async response => {
+                    if (response.status === 402) {
+                        const data = await response.json();
+                        document.getElementById("errorText").textContent = data.error || "Payment Required";
+
+                        const req = data.accepts?.[0];
+                        if (req) {
+                            const amount = req.maxAmountRequired;
+                            const token = req.extra?.name || req.asset;
+                            const network = req.network;
+
+                            document.getElementById("paymentDetails").textContent =
+                                `A payment of ${amount} ${token} on ${network} is required.`;
+                        } else {
+                            document.getElementById("paymentDetails").textContent = "";
+                        }
+
+                        document.getElementById("errorModal").style.display = "block";
+                    } else if (response.ok) {
+                        const data = await response.json();
+                        alert("✅ Access granted: " + JSON.stringify(data));
+                    } else {
+                        alert("Unexpected error: " + response.status);
+                    }
+                })
+                .catch(err => {
+                    console.error("Request failed", err);
+                    alert("Network error occurred.");
+                });
+            });
+        });
+
+    function getChainId(network) {
+    switch (network) {
+        case "base_sepolia":
+        case "base-sepolia":
+            return 84532;
+        default:
+            throw new Error("Unsupported network: " + network);
+    }
+
+    const domain = {
+        name: "EURO_S", // or fetch from token contract if needed
+        version: "2",
+        chainId: 84532,
+        verifyingContract: "0x6Ac14e603A2742fB919248D66c8ecB05D8Aec1e9", // token address
+    };
+
+    const types = {
+        TransferWithAuthorization: [
+            { name: "from", type: "address" },
+            { name: "to", type: "address" },
+            { name: "value", type: "uint256" },
+            { name: "validAfter", type: "uint256" },
+            { name: "validBefore", type: "uint256" },
+            { name: "nonce", type: "bytes32" },
+        ],
+    };
+
+}
+
+    </script>
+
+</body>
+</html>
