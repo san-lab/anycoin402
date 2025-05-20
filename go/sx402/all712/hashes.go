@@ -1,7 +1,6 @@
 package all712
 
 import (
-	"fmt"
 	"log"
 	"math/big"
 
@@ -38,7 +37,7 @@ func EIP721Hash(from, to, tokenAddress common.Address, value, after, before, cha
 	}
 
 	structHash := crypto.Keccak256Hash(append(transferTypeHash.Bytes(), packed...))
-	fmt.Println("structHash", structHash)
+	//structHash := crypto.Keccak256Hash(packed)
 	// EIP-712 domain separator
 	domainSeparator := MakeDomainSeparator(name, version, chainID, tokenAddress)
 

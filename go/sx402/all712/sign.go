@@ -79,7 +79,7 @@ func AddAuthorizationSignature(paymentReqs *types.PaymentRequirements, from_key 
 	ppld.Payload.Authorization = new(types.ExactEvmPayloadAuthorization)
 	ppld.Payload.Authorization.From = from.Hex()
 	ppld.Payload.Authorization.To = paymentReqs.PayTo
-	ppld.Payload.Authorization.ValidAfter = fmt.Sprint(time.Now().Unix())
+	ppld.Payload.Authorization.ValidAfter = fmt.Sprint(time.Now().Add(10 * time.Minute).Unix())
 	ppld.Payload.Authorization.ValidBefore = fmt.Sprint(time.Now().Add(24 * time.Hour).Unix())
 	ppld.Payload.Authorization.Value = paymentReqs.MaxAmountRequired
 
@@ -95,7 +95,7 @@ func AddAuthorizationSignature(paymentReqs *types.PaymentRequirements, from_key 
 	if !ok {
 		return nil, errors.New("Unknown network: " + ppld.Network)
 	}
-	timestring := time.ANSIC
+	timestring := time.Now().GoString()
 	nonce := crypto.Keccak256([]byte(timestring))
 	ppld.Payload.Authorization.Nonce = "0x" + hex.EncodeToString(nonce)
 	auth := Authorization(*ppld.Payload.Authorization)

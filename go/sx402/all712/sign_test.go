@@ -70,6 +70,7 @@ func TestAddSignature(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	preq.MaxAmountRequired = "1234"
 	privkeyhex := "56c11c2fee673894e85151857339066cd244d4932f23e660ce8502c867d0927e"
 	privkey, err := crypto.HexToECDSA(privkeyhex)
 
@@ -93,6 +94,29 @@ func TestAddSignature(t *testing.T) {
 		t.Error(err)
 	}
 	ok, recovered, err := VerifyTransferWithAuthorizationSignature(ppld.Payload.Signature, *ppld.Payload.Authorization, extra["name"], extra["version"], big.NewInt(84532), common.HexToAddress(preq.Asset))
+	if err != nil {
+		t.Error(err)
+	}
+	log.Println(ok, "recovered payer: ", recovered)
+}
+
+func TestJMignature(t *testing.T) {
+	//signature := "0xa5f8b738aedbb7096d6c9eff2a00506855e4bda75454d4b61389730e7bb4acbc11470566bdde97245f8fc873140e203efa8c79a233af9c80c3f1219aa5edd0991b"
+	signature := "0x98823dd1606f5fa70c60af0a85b40973a319e5fc6177fc535bba9f8a9fdb9e78556b918d851c60c8fb118ff21386dfd7065c0e40b458f4ccc39c3e2829380f2c1b"
+	tokenName := "USDC"
+	tokenVersion := "1"
+	tokenAddress := "0x036CbD53842c5426634e7929541eC2318f3dCF7"
+
+	auth := types.ExactEvmPayloadAuthorization{
+		From:        "0xcd3c55547cda4da34c745e8f3b57698166c8aeeb",
+		To:          "0x5F18bD40CF6cBbf034ff3d2003576B95E73D32e3",
+		Value:       "1000000000000000000",
+		ValidAfter:  "0",
+		ValidBefore: "1747731903",
+		Nonce:       "0xb55ba27ac38b7e4f4b9aa4289bae8813e42c39024b4c253afb2b5d3df0c6065e",
+	}
+
+	ok, recovered, err := VerifyTransferWithAuthorizationSignature(signature, auth, tokenName, tokenVersion, big.NewInt(84532), common.HexToAddress(tokenAddress))
 	if err != nil {
 		t.Error(err)
 	}

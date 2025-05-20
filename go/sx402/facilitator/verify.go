@@ -7,6 +7,8 @@ import (
 	"log"
 	"math/big"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/coinbase/x402/go/pkg/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -80,44 +82,17 @@ func verifyHandler(c *gin.Context) {
 
 	response := types.VerifyResponse{}
 
-	sig := payload.PaymentPayload.Payload.Signature
-	auth := payload.PaymentPayload.Payload.Authorization
-	einfo := ExtraInfo{}
-	err := json.Unmarshal(*payload.PaymentRequirements.Extra, &einfo)
+	amount, _, payer, asset, nonce, err := FormallyVerifyEnvelope(&payload)
+
 	if err != nil {
-		reason := "Invalid ExtraInfo"
+		reason := err.Error()
 		response.InvalidReason = &reason
 		c.JSON(http.StatusBadRequest, response)
 		return
 	}
-	asset := common.HexToAddress(payload.PaymentRequirements.Asset)
-	amount, ok := new(big.Int).SetString(payload.PaymentPayload.Payload.Authorization.Value, 10)
-	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Authorization Value: " + err.Error()})
-		return
-	}
-	chainID, ok := all712.ChainIDs[payload.PaymentPayload.Network]
-	if !ok {
-		reason := "Unsupported network: " + payload.PaymentPayload.Network
-		response.InvalidReason = &reason
-		c.JSON(http.StatusOK, reason)
-	}
-	ok, payer, err := all712.VerifyTransferWithAuthorizationSignature(sig, *auth, einfo["name"], einfo["version"],
-		chainID, asset)
-	ph := payer.Hex()
-	response.Payer = &ph
-
-	if !ok || err != nil {
-		reason := err.Error()
-		response.InvalidReason = &reason
-		c.JSON(http.StatusOK, response)
-		return
-	}
-
-	noncesl, _ := hex.DecodeString(payload.PaymentPayload.Payload.Authorization.Nonce[2:])
-	var nonce [32]byte
-	copy(nonce[:], noncesl)
-
+	p := payer.Hex()
+	response.Payer = &p
+	// Checks on-chain
 	known, err := evmbinding.CheckAuthorizationState(client, asset, payer, nonce)
 	if known {
 		reason := "Nonce already used"
@@ -128,9 +103,7 @@ func verifyHandler(c *gin.Context) {
 
 	balance, err := evmbinding.CheckTokenBalance(client, asset, payer)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"Formal verification": ok,
-			"Unable to check the balance": err,
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"Unable to check the balance": err})
 		return
 	}
 
@@ -143,4 +116,74 @@ func verifyHandler(c *gin.Context) {
 
 	response.IsValid = true
 	c.JSON(http.StatusOK, response)
+}
+
+func FormallyVerifyEnvelope(envelope *all712.Envelope) (amount, chainID *big.Int, payer, asset common.Address, nonce [32]byte, err error) {
+	var ok bool
+	amount, ok = new(big.Int).SetString(envelope.PaymentPayload.Payload.Authorization.Value, 10)
+	if !ok {
+		err = fmt.Errorf("Wrong value: %s", envelope.PaymentPayload.Payload.Authorization.Value)
+		return
+	}
+
+	required, ok := new(big.Int).SetString(envelope.PaymentRequirements.MaxAmountRequired, 10)
+	if !ok {
+		err = fmt.Errorf("Wrong MaxAmountRequired value: %s", envelope.PaymentRequirements.MaxAmountRequired)
+		return
+	}
+	if amount.Cmp(required) != 0 {
+		err = fmt.Errorf("Authorized amount dirrefent from required: %v, %v", amount, required)
+		return
+	}
+
+	after, ok := new(big.Int).SetString(envelope.PaymentPayload.Payload.Authorization.ValidAfter, 10)
+	if !ok {
+		err = fmt.Errorf("Wrong VelidAfter parameter: %s", envelope.PaymentPayload.Payload.Authorization.ValidAfter)
+		return
+	}
+
+	if time.Now().Unix() < after.Int64() {
+		err = fmt.Errorf("Authorization not valid yet: %v/%v", after.Int64(), time.Now().Unix())
+		return
+	}
+
+	before, ok := new(big.Int).SetString(envelope.PaymentPayload.Payload.Authorization.ValidBefore, 10)
+	if !ok {
+		err = fmt.Errorf("Wrong VelidBefore parameter: %s", envelope.PaymentPayload.Payload.Authorization.ValidBefore)
+		return
+	}
+	if time.Now().Unix() > before.Int64() {
+		err = fmt.Errorf("Authorization expired: %v/%v", before.Int64(), time.Now().Unix())
+		return
+	}
+
+	asset = common.HexToAddress(envelope.PaymentRequirements.Asset)
+	chainID, ok = all712.ChainIDs[envelope.PaymentPayload.Network]
+	if !ok {
+		err = fmt.Errorf("Unsupported network: %s", envelope.PaymentPayload.Network)
+		return
+
+	}
+
+	einfo := ExtraInfo{}
+	err = json.Unmarshal(*envelope.PaymentRequirements.Extra, &einfo)
+	if err != nil {
+		err = fmt.Errorf("Error parsing ExtraInfo: %w", err)
+		return
+	}
+
+	ok, payer, err = all712.VerifyTransferWithAuthorizationSignature(
+		envelope.PaymentPayload.Payload.Signature,
+		*envelope.PaymentPayload.Payload.Authorization,
+		einfo["name"], einfo["version"],
+		chainID, common.HexToAddress(envelope.PaymentRequirements.Asset))
+
+	if err != nil {
+		return
+	}
+	var noncesl []byte
+	noncesl, err = hex.DecodeString(strings.TrimPrefix(envelope.PaymentPayload.Payload.Authorization.Nonce, "0x"))
+	copy(nonce[:], noncesl)
+
+	return
 }
