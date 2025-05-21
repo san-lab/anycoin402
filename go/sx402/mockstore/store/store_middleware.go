@@ -153,7 +153,7 @@ func validatePayment(env *all712.Envelope) error {
 		return nil
 	}
 
-	return fmt.Errorf("Paiment validation failed: %ss", *fvres.InvalidReason)
+	return fmt.Errorf("Authorization validation failed: %ss", *fvres.InvalidReason)
 }
 
 func settlePayment(env *all712.Envelope) (*types.SettleResponse, error) {

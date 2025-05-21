@@ -49,9 +49,9 @@
   <p>Select a resource to access:</p>
 
   <ul>
-    <li><a href="/resources?RESID=1" class="resource-link">First Resource</a></li>
-    <li><a href="/resources?RESID=2" class="resource-link">Second Resource</a></li>
-    <li><a href="/resources?RESID=3" class="resource-link">Third Resource</a></li>
+    <li><a href="/resources?RESID=1" class="resource-link">The King</a></li>
+    <li><a href="/resources?RESID=2" class="resource-link">The Princess</a></li>
+    <li><a href="/resources?RESID=3" class="resource-link">The Jester</a></li>
   </ul>
 
   <button id="connectButton">Connect to MetaMask</button>
@@ -204,7 +204,7 @@
             window.lastPaymentRequirement = schema;
 
             document.getElementById('errorMessage').innerText =
-              `A payment of ${amount} ${token} on network ${network} is required.`;
+              `A payment of ${amount/1000000} ${token} on network ${network} is required.`;
 
             document.getElementById('errorModal').style.display = 'block';
           } else {
