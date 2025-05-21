@@ -5,6 +5,7 @@ go 1.23.6
 require (
 	github.com/coinbase/x402/go v0.0.0-20250513004456-fb9cbd06a76e
 	github.com/ethereum/go-ethereum v1.15.11
+	github.com/gin-contrib/cors v1.7.5
 	github.com/gin-gonic/gin v1.10.0
 )
 

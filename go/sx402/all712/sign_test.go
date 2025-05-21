@@ -123,4 +123,27 @@ func TestJMignature(t *testing.T) {
 	log.Println(ok, "recovered payer: ", recovered)
 }
 
+const message1 = `{"from" : "0xcef702bd69926b13ab7150624daa7afee0300786",
+"nonce": "0x0b38c4346596ec21682d78991d9337bafe26e7b772b3c99457b1d4b00e1862d4",
+"to": "0xCEF702Bd69926B13ab7150624daA7aFEE0300786",
+"validAfter":"1747751973",
+"validBefore": "1747752573",
+"value": "2000"}`
+
+const sig1 = `0xc7aac39eb838c7bc03d2f6a829257a0f184dd6f5752483115251014180fdd4fb710c00bae8aed1921b13cdcb84600c7206bd6d034d1cdbb92fc6e4e493be9d9c1c`
+
+const message2 = `{"from":"0xcef702bd69926b13ab7150624daa7afee0300786","to":"0xCEF702Bd69926B13ab7150624daA7aFEE0300786","value":"2000","validAfter":"1747814778","validBefore":"1747815378","nonce":"0x75d69d62a999e935e2ad4741616c56ae36a751ebfbdcef0bb44c0203f0db650b"}`
+const sig2 = `0xe6f5066174d74b16f49e28e00d83b35e14e1bb3325006213ffecafc12e2b146e538f9addef06512951693c2e7c35b29fceea9f1c0f58abb92aebca22bd9b3c7a1b`
+
+func TestMessage(t *testing.T) {
+	auth := new(types.ExactEvmPayloadAuthorization)
+	err := json.Unmarshal([]byte(message2), auth)
+	if err != nil {
+		t.Error(err)
+	}
+	_, payer, err := VerifyTransferWithAuthorizationSignature(sig2, *auth, "EURO_S", "2", big.NewInt(84532), BaseSepoliaEURSAddress)
+	fmt.Println(payer, err)
+
+}
+
 const somePayReqs = `{"scheme":"exact","network":"base-sepolia","maxAmountRequired":"15000","resource":"http://localhost:4021/weather","description":"","mimeType":"","payTo":"0x64A8303112D05027F1f1d4ed7e54482799861db0","maxTimeoutSeconds":60,"asset":"0x6Ac14e603A2742fB919248D66c8ecB05D8Aec1e9","extra":{"name":"EURO_S","version":"2"}}`

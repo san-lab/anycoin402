@@ -101,11 +101,11 @@ func VerifyTransferWithAuthorizationSignature(
 	recoveredAddr := crypto.PubkeyToAddress(*pubKey)
 
 	// Compare recovered address with `from`
-	isValid := strings.Compare(recoveredAddr.Hex(), auth.From) == 0
+	isValid := strings.Compare(strings.ToLower(recoveredAddr.Hex()), strings.ToLower(auth.From)) == 0
 	log.Println("Recovered:", recoveredAddr)
 	log.Println("From:", auth.From)
 	if !isValid {
-		return false, recoveredAddr, fmt.Errorf("Recovered address differ: %s", auth.From)
+		return false, recoveredAddr, fmt.Errorf("Recovered address differ: %s expected %s", recoveredAddr, auth.From)
 	}
 
 	return true, recoveredAddr, nil
