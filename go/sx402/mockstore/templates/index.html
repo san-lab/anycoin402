@@ -164,9 +164,14 @@
             document.open();
             document.write(html);
             document.close();
+        
         } else {
-          alert("Access denied even after payment authorization.");
+          const errorData = await response.json();
+          const errorMessage = `${errorData.error}\n\n${errorData.details}`;
+          alert(`Access denied:\n\n${errorMessage}`);
         }
+
+        
       } catch (error) {
         console.error("Error fetching resource with payment:", error);
       }

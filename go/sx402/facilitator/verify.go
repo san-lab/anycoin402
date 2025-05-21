@@ -97,7 +97,7 @@ func verifyHandler(c *gin.Context) {
 	if payer.Hex() == TortugaOperator.Hex() {
 		reason := "Tortuga Operator has been blacklisted"
 		response.InvalidReason = &reason
-		c.JSON(http.StatusBadRequest, response)
+		c.JSON(http.StatusOK, response)
 		return
 	}
 
