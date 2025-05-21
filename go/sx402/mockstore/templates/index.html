@@ -54,6 +54,9 @@
     <li><a href="/resources?RESID=3" class="resource-link">Third Resource</a></li>
   </ul>
 
+  <button id="connectButton">Connect to MetaMask</button>
+  <p id="walletAddress" style="margin-top: 8px;"></p>
+
   <div id="errorModal">
     <div id="modalContent">
       <p id="errorMessage"></p>
@@ -84,7 +87,6 @@
         chainId,
         verifyingContract
       };
-      console.log(domain);
 
       const types = {
         TransferWithAuthorization: [
@@ -105,23 +107,26 @@
         validBefore,
         nonce
       };
-      
-    const signature = await ethereum.request({
-        method: 'eth_signTypedData_v4',
-        params: [from, JSON.stringify({
-            types: { EIP712Domain: [
-              { name: "name", type: "string" },
-              { name: "version", type: "string" },
-              { name: "chainId", type: "uint256" },
-              { name: "verifyingContract", type: "address" }
-            ], ...types },
-            domain,
-            primaryType: "TransferWithAuthorization",
-            message
-          })]
+
+      const typesJson = JSON.stringify({
+        types: {
+          EIP712Domain: [
+            { name: "name", type: "string" },
+            { name: "version", type: "string" },
+            { name: "chainId", type: "uint256" },
+            { name: "verifyingContract", type: "address" }
+          ],
+          ...types
+        },
+        domain,
+        primaryType: "TransferWithAuthorization",
+        message
       });
 
-      console.log("Signature:", signature);
+      const signature = await ethereum.request({
+        method: 'eth_signTypedData_v4',
+        params: [from, typesJson]
+      });
 
       const payload = {
         x402Version: 1,
@@ -131,33 +136,40 @@
           network: currentSchema.network,
           payload: {
             signature,
-            //authorization: message
             authorization: {
-            from,
-            to,
-            value: value.toString(),
-            validAfter: validAfter.toString(),
-            validBefore: validBefore.toString(),
-            nonce
-          }
+              from,
+              to,
+              value: value.toString(),
+              validAfter: validAfter.toString(),
+              validBefore: validBefore.toString(),
+              nonce
+            }
           }
         },
         paymentRequirements: currentSchema
       };
-      console.log(JSON.stringify(payload.paymentPayload.payload.authorization))
 
-      
-     // const verifyEndpoint = "https://anycoin402.duckdns.org/facilitator/verify";
-      const verifyEndpoint = "http://localhost:3010/facilitator/verify";
-     
-      const resp = await fetch(verifyEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      const href = currentSchema.href;
+      console.log("Calling for the resource with the payment header: ", JSON.stringify(payload.paymentPayload))
 
-      const result = await resp.json();
-      console.log("Facilitator response:", result);
+      try {
+        const response = await fetch(href, {
+          method: 'GET',
+          headers: {
+            'X-Payment': JSON.stringify(payload.paymentPayload)
+          }
+        });
+        if (response.ok) {
+            const html = await response.text();
+            document.open();
+            document.write(html);
+            document.close();
+        } else {
+          alert("Access denied even after payment authorization.");
+        }
+      } catch (error) {
+        console.error("Error fetching resource with payment:", error);
+      }
 
       closeModal();
     }
@@ -179,12 +191,12 @@
             const data = await res.json();
             const schema = data.accepts[0];
             currentSchema = schema;
+            currentSchema.href = href;
 
             const amount = schema.maxAmountRequired;
             const token = schema.extra.name;
             const network = schema.network;
-            window.lastPaymentRequirement = data.accepts?.[0]; // store for signing
-
+            window.lastPaymentRequirement = schema;
 
             document.getElementById('errorMessage').innerText =
               `A payment of ${amount} ${token} on network ${network} is required.`;
@@ -197,6 +209,20 @@
           console.error("Request failed:", err);
         }
       });
+    });
+
+    document.getElementById('connectButton').addEventListener('click', async () => {
+      if (typeof window.ethereum !== 'undefined') {
+        try {
+          const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+          const account = accounts[0];
+          document.getElementById('walletAddress').innerText = `Connected: ${account}`;
+        } catch (error) {
+          console.error("User rejected the connection:", error);
+        }
+      } else {
+        alert("MetaMask is not installed.");
+      }
     });
   </script>
 </body>

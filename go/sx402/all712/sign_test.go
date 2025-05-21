@@ -147,3 +147,22 @@ func TestMessage(t *testing.T) {
 }
 
 const somePayReqs = `{"scheme":"exact","network":"base-sepolia","maxAmountRequired":"15000","resource":"http://localhost:4021/weather","description":"","mimeType":"","payTo":"0x64A8303112D05027F1f1d4ed7e54482799861db0","maxTimeoutSeconds":60,"asset":"0x6Ac14e603A2742fB919248D66c8ecB05D8Aec1e9","extra":{"name":"EURO_S","version":"2"}}`
+
+const jmheader = `eyJ4NDAyVmVyc2lvbiI6MSwic2NoZW1lIjoiZXhhY3QiLCJuZXR3b3JrIjoiYmFzZS1zZXBvbGlhIiwicGF5bG9hZCI6eyJzaWduYXR1cmUiOiIweDE1YzQ1OTdhNjMxNjBjNmVlODU3MzZjODM0YzI1NDJmMmQ4OGY5NjFjNTZlYTllYTM1ZWQ2MzQzNjNiNTVhZWQxMzExZDRhNzE5ZTRhZWRmNjBhZjY5YmY5ZmQ0NjUzM2ZkNGVjODRhZGRmYThmODVlNzNkN2RmMzM5MDRkZTg3MWMiLCJhdXRob3JpemF0aW9uIjp7ImZyb20iOiIweGNkM2M1NTU0N2NkYTRkYTM0Yzc0NWU4ZjNiNTc2OTgxNjZjOGFlZWIiLCJ0byI6IjB4Q0VGNzAyQmQ2OTkyNkIxM2FiNzE1MDYyNGRhQTdhRkVFMDMwMDc4NiIsInZhbHVlIjoiMCIsInZhbGlkQWZ0ZXIiOiIwIiwidmFsaWRCZWZvcmUiOiIxNzQ3ODIyMzcyIiwibm9uY2UiOiIweGI1NWJhMjdhYzM4YjdlNGY0YjlhYTQyODliYWU4ODEzZTQyYzM5MDI0YjRjMjUzYWZiMmI1ZDNkZjBjNjA2NWUifX19`
+
+func TestJMH(t *testing.T) {
+	bts, err := base64.StdEncoding.DecodeString(jmheader)
+	if err != nil {
+		t.Error(err)
+	}
+	fmt.Println(string(bts))
+	ph := new(types.PaymentPayload)
+	err = json.Unmarshal(bts, ph)
+	if err != nil {
+		t.Error(err)
+	}
+	auth := ph.Payload.Authorization
+	_, payer, err := VerifyTransferWithAuthorizationSignature(ph.Payload.Signature, *auth, "USDC", "2", big.NewInt(84532), common.HexToAddress("0x036CbD53842c5426634e7929541eC2318f3dCF7e"))
+	fmt.Println(payer, err)
+
+}

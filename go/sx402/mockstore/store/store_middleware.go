@@ -4,35 +4,48 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 
+	"github.com/coinbase/x402/go/pkg/types"
 	"github.com/gin-gonic/gin"
 	"github.com/san-lab/sx402/all712"
 )
 
 const X_PAYMENT_HEADER = "X-Payment"
 
-type Schema struct {
-	Scheme            string            `json:"scheme"`
-	Network           string            `json:"network"`
-	MaxAmountRequired string            `json:"maxAmountRequired"`
-	Resource          string            `json:"resource"`
-	Description       string            `json:"description"`
-	MimeType          string            `json:"mimeType"`
-	PayTo             string            `json:"payTo"`
-	MaxTimeoutSeconds int               `json:"maxTimeoutSeconds"`
-	Asset             string            `json:"asset"`
-	Extra             map[string]string `json:"extra"`
+/*
+	struct {
+		Scheme            string            `json:"scheme"`
+		Network           string            `json:"network"`
+		MaxAmountRequired string            `json:"maxAmountRequired"`
+		Resource          string            `json:"resource"`
+		Description       string            `json:"description"`
+		MimeType          string            `json:"mimeType"`
+		PayTo             string            `json:"payTo"`
+		MaxTimeoutSeconds int               `json:"maxTimeoutSeconds"`
+		Asset             string            `json:"asset"`
+		Extra             map[string]string `json:"extra"`
+	}
+*/
+var EURO_SSchemaExtraBytes []byte
+
+func init() {
+	var err error
+	EURO_SSchemaExtraBytes, err = json.Marshal(map[string]string{"name": "EURO_S", "version": "2"})
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
-func NewExactEURSSchema(resource string, price string) Schema {
-	return Schema{Scheme: "exact", Network: "base-sepolia",
+func NewExactEURSSchema(resource string, price string) *types.PaymentRequirements {
+	return &types.PaymentRequirements{Scheme: "exact", Network: "base-sepolia",
 		PayTo:             "0xCEF702Bd69926B13ab7150624daA7aFEE0300786", //Tortuga_Governor
 		MaxTimeoutSeconds: 120,
 		Asset:             "0x6Ac14e603A2742fB919248D66c8ecB05D8Aec1e9",
 		MaxAmountRequired: price,
 		Resource:          resource,
-		Extra:             map[string]string{"name": "EURO_S", "version": "2"},
+		Extra:             (*json.RawMessage)(&EURO_SSchemaExtraBytes),
 	}
 }
 
@@ -55,10 +68,11 @@ func X402Middleware(c *gin.Context) {
 	}
 
 	paymentHeader := c.GetHeader(X_PAYMENT_HEADER)
+	resourceURI := fmt.Sprintf("/resource?RESID=%s", rid)
+	schema := NewExactEURSSchema(resourceURI, price)
 
 	if paymentHeader == "" {
-		resourceURI := fmt.Sprintf("/resource?RESID=%s", rid)
-		schema := NewExactEURSSchema(resourceURI, price)
+
 		response := gin.H{
 			"x402Version": 1,
 			"error":       "X-PAYMENT header is required",
@@ -69,7 +83,17 @@ func X402Middleware(c *gin.Context) {
 		return
 	}
 
-	if err := validatePayment(paymentHeader); err != nil {
+	var env = new(all712.Envelope)
+	headerPayload := new(types.PaymentPayload)
+	if err := json.Unmarshal([]byte(paymentHeader), &headerPayload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad X-Payment header"})
+	}
+
+	env.X402Version = 1
+	env.PaymentRequirements = schema
+	env.PaymentPayload = headerPayload
+
+	if err := validatePayment(env); err != nil {
 		c.JSON(http.StatusForbidden, gin.H{
 			"error":   "Invalid or unverified payment",
 			"details": err.Error(),
@@ -78,30 +102,37 @@ func X402Middleware(c *gin.Context) {
 		return
 	}
 
-	// Payment is valid
-	c.Next()
+	settleResponse, err := settlePayment(env)
+	if err != nil {
+		c.JSON(http.StatusPaymentRequired, gin.H{"error settling payment": err})
+		c.Abort()
+		return
+	}
+
+	if settleResponse.Success {
+		c.Set("settleReponse", settleResponse)
+		c.Next()
+	}
+
+	c.JSON(http.StatusForbidden, gin.H{
+		"settling error": settleResponse.ErrorReason,
+	})
+	c.Abort()
+	return
+
 }
 
 const facilitatorURI = "https://anycoin402.duckdns.org/facilitator"
 
-func validatePayment(paymentHeader string) error {
+func validatePayment(env *all712.Envelope) error {
 	// Step 1: Parse the payment header
-	var env all712.Envelope
-	if err := json.Unmarshal([]byte(paymentHeader), &env); err != nil {
-		return fmt.Errorf("failed to parse Payment header: %w", err)
-	}
 
-	// Optional: Validate content fields here
-	if env.PaymentPayload == nil || env.PaymentRequirements == nil {
-		return fmt.Errorf("incomplete payment envelope")
-	}
-
-	reqBody, err := json.Marshal(gin.H{"payment": paymentHeader})
+	reqBody, err := json.Marshal(env)
 	if err != nil {
 		return fmt.Errorf("failed to encode request: %w", err)
 	}
 
-	resp, err := http.Post(facilitatorURI, "application/json", bytes.NewReader(reqBody))
+	resp, err := http.Post(facilitatorURI+"/verify", "application/json", bytes.NewReader(reqBody))
 	if err != nil {
 		return fmt.Errorf("facilitator error: %w", err)
 	}
@@ -111,5 +142,39 @@ func validatePayment(paymentHeader string) error {
 		return fmt.Errorf("facilitator rejected payment: %s", resp.Status)
 	}
 
-	return nil
+	fvres := new(types.VerifyResponse)
+	err = json.NewDecoder(resp.Body).Decode(fvres)
+	if err != nil {
+		return fmt.Errorf("error paring reponse from the facilitator/verify: %w", err)
+	}
+
+	if fvres.IsValid {
+		return nil
+	}
+
+	return fmt.Errorf("Paiment validation failed: %ss", *fvres.InvalidReason)
+}
+
+func settlePayment(env *all712.Envelope) (*types.SettleResponse, error) {
+	reqBody, err := json.Marshal(env)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode request: %w", err)
+	}
+
+	resp, err := http.Post(facilitatorURI+"/settle", "application/json", bytes.NewReader(reqBody))
+	if err != nil {
+		return nil, fmt.Errorf("facilitator error: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("facilitator rejected procesing the payment: %s", resp.Status)
+	}
+
+	stres := new(types.SettleResponse)
+	err = json.NewDecoder(resp.Body).Decode(stres)
+	if err != nil {
+		return nil, fmt.Errorf("error paring reponse from the facilitator/settle: %w", err)
+	}
+	return stres, nil
 }

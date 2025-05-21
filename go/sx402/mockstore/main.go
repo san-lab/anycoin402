@@ -23,12 +23,7 @@ func main() {
 	})
 
 	// Protected resources
-	r.GET("/resources", store.X402Middleware, resourceHandler)
+	r.GET("/resources", store.X402Middleware, store.ResourceHandler)
 
 	r.Run(":4021")
-}
-
-func resourceHandler(c *gin.Context) {
-	resid := c.Query("RESID")
-	c.JSON(http.StatusOK, gin.H{"message": "Access granted to resource " + resid})
 }

@@ -54,120 +54,79 @@
     <li><a href="/resources?RESID=3" class="resource-link">Third Resource</a></li>
   </ul>
 
+  <button id="connectButton">Connect to MetaMask</button>
+  <p id="walletAddress" style="margin-top: 8px;"></p>
+
+
   <div id="errorModal">
     <div id="modalContent">
-      <h2>Payment Required</h2>
-      <p id="errorText"></p>
-      <p id="paymentDetails" style="font-weight: bold;"></p>
-      <div style="margin-top: 20px;">
-        <button id="authorizeBtn">Authorize Payment</button>
-        <button onclick="document.getElementById('errorModal').style.display='none'">Cancel</button>
-      </div>
+      <p id="errorMessage"></p>
+      <button onclick="signAuthorization()">Sign Payment Authorization</button>
+      <button onclick="closeModal()">Close</button>
     </div>
   </div>
 
+  <div id="verifyErrorModal" style="display:none; position:fixed; z-index:1001; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.5);">
+    <div style="background:white; margin:10% auto; padding:20px; width:50%; border-radius:10px; text-align:center;">
+      <p id="verifyErrorMessage" style="color:red;"></p>
+      <button onclick="closeVerifyModal()">Close</button>
+    </div>
+  </div>
+
+  <div id="settleModal" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.5);">
+    <div style="background:white; margin:10% auto; padding:20px; width:60%; border-radius:10px; box-shadow:0 0 10px rgba(0,0,0,0.3); text-align:left;">
+      <h2>Settlement Result</h2>
+      <pre id="settleResult" style="white-space:pre-wrap; word-wrap:break-word;"></pre>
+      <button onclick="closeSettleModal()">Close</button>
+    </div>
+  </div>
+  
+
   <script>
-    function getChainId(network) {
-      switch (network) {
-        case "base_sepolia":
-        case "base-sepolia":
-          return 84532;
-        default:
-          throw new Error("Unsupported network: " + network);
-      }
-    }
+    const chainIdMap = {
+      "base-sepolia": 84532
+    };
 
-    document.querySelectorAll(".resource-link").forEach(link => {
-      link.addEventListener("click", function(event) {
-        event.preventDefault();
-        const url = this.href;
+    async function signAuthorization() {
+      const now = Math.floor(Date.now() / 1000);
+      const validAfter = now;
+      const validBefore = now + 600;
+      const nonce = '0x' + [...crypto.getRandomValues(new Uint8Array(32))].map(x => x.toString(16).padStart(2, '0')).join('');
 
-        fetch(url)
-          .then(async response => {
-            if (response.status === 402) {
-              const data = await response.json();
-              document.getElementById("errorText").textContent = data.error || "Payment Required";
+      const from = ethereum.selectedAddress;
+      const to = currentSchema.payTo;
+      const value = currentSchema.maxAmountRequired;
+      const chainId = chainIdMap[currentSchema.network];
+      const verifyingContract = currentSchema.asset;
+      const domain = {
+        name: currentSchema.extra?.name || "Token",
+        version: currentSchema.extra?.version || "1",
+        chainId,
+        verifyingContract
+      };
+      //console.log(domain);
 
-              const req = data.accepts?.[0];
-              window.lastPaymentRequirement = req;
+      const types = {
+        TransferWithAuthorization: [
+          { name: 'from', type: 'address' },
+          { name: 'to', type: 'address' },
+          { name: 'value', type: 'uint256' },
+          { name: 'validAfter', type: 'uint256' },
+          { name: 'validBefore', type: 'uint256' },
+          { name: 'nonce', type: 'bytes32' }
+        ]
+      };
 
-              if (req) {
-                const amount = req.maxAmountRequired;
-                const token = req.extra?.name || req.asset;
-                const network = req.network;
+      const message = {
+        from,
+        to,
+        value,
+        validAfter,
+        validBefore,
+        nonce
+      };
 
-                document.getElementById("paymentDetails").textContent =
-                  `A payment of ${amount} ${token} on ${network} is required.`;
-              } else {
-                document.getElementById("paymentDetails").textContent = "";
-              }
-
-              document.getElementById("errorModal").style.display = "block";
-            } else if (response.ok) {
-              const data = await response.json();
-              alert("✅ Access granted: " + JSON.stringify(data));
-            } else {
-              alert("Unexpected error: " + response.status);
-            }
-          })
-          .catch(err => {
-            console.error("Request failed", err);
-            alert("Network error occurred.");
-          });
-      });
-    });
-
-    document.getElementById("authorizeBtn").addEventListener("click", async () => {
-      try {
-        const req = window.lastPaymentRequirement;
-        const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-        const from = accounts[0];
-        const to = req.payTo;
-        const value = req.maxAmountRequired;
-        const chainId = getChainId(req.network);
-        const verifyingContract = req.asset;
-
-        const domain = {
-          name: req.extra?.name || "Token",
-          version: req.extra?.version || "1",
-          chainId: chainId,
-          verifyingContract: verifyingContract
-        };
-
-        const types = {
-          TransferWithAuthorization: [
-            { name: "from", type: "address" },
-            { name: "to", type: "address" },
-            { name: "value", type: "uint256" },
-            { name: "validAfter", type: "uint256" },
-            { name: "validBefore", type: "uint256" },
-            { name: "nonce", type: "bytes32" }
-          ]
-        };
-
-        const now = Math.floor(Date.now() / 1000);
-        const validAfter = now;
-        const validBefore = now + 600;
-
-        const nonce = "0x" + Array.from(crypto.getRandomValues(new Uint8Array(32)))
-          .map(b => b.toString(16).padStart(2, "0")).join("");
-
-        const message = {
-          from,
-          to,
-          value,
-          validAfter,
-          validBefore,
-          nonce
-        };
-
-        // Log domain separator for diagnostics (estimated from struct hash)
-        console.log("📦 Domain (EIP-712):", domain);
-        console.log("🧾 Message:", JSON.stringify(message));
-
-        const signature = await window.ethereum.request({
-          method: "eth_signTypedData_v4",
-          params: [from, JSON.stringify({
+    const typesJson = JSON.stringify({
             types: { EIP712Domain: [
               { name: "name", type: "string" },
               { name: "version", type: "string" },
@@ -177,18 +136,155 @@
             domain,
             primaryType: "TransferWithAuthorization",
             message
-          })]
-        });
+          });
+    
+          console.log(typesJson);
+    const signature = await ethereum.request({
+        method: 'eth_signTypedData_v4',
+        params: [from, typesJson]
+      });
 
-        console.log("🖋️ Signature:", signature);
-        alert("✅ Payment signed!\nCheck console for signature details.");
-        document.getElementById("errorModal").style.display = "none";
-      } catch (err) {
-        console.error("Signature failed", err);
-        alert("❌ Signature failed: " + err.message);
-      }
+      console.log("Signature:", signature);
+
+      const payload = {
+        x402Version: 1,
+        paymentPayload: {
+          x402Version: 1,
+          scheme: currentSchema.scheme,
+          network: currentSchema.network,
+          payload: {
+            signature,
+            //authorization: message
+            authorization: {
+            from,
+            to,
+            value: value.toString(),
+            validAfter: validAfter.toString(),
+            validBefore: validBefore.toString(),
+            nonce
+          }
+          }
+        },
+        paymentRequirements: currentSchema
+      };
+      console.log(JSON.stringify(payload.paymentPayload.payload.authorization))
+
+      
+      //const verifyEndpoint = "https://anycoin402.duckdns.org/facilitator/verify";
+      const settleEndpoint = "https://anycoin402.duckdns.org/facilitator/settle";
+      const verifyEndpoint = "http://localhost:3010/facilitator/verify";
+     //const verifyEndpoint = "https://x402.org/facilitator/verify";
+
+     
+      const resp = await fetch(verifyEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await resp.json();
+      console.log("Facilitator response:", result);
+         if (!result.isValid) {
+      document.getElementById('verifyErrorMessage').innerText = result.invalidReason || "Unknown reason";
+      document.getElementById('verifyErrorModal').style.display = 'block';
+      return;
+    }
+
+    console.log("Facilitator response:", result);
+      if (!result.isValid) {
+            alert(`Payment verification failed: ${result.invalidReason || 'Unknown reason'}`);
+            return;
+        }
+
+    console.log("Verification passed, settling authorization...");
+
+    const settleResp = await fetch(settleEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
     });
-  </script>
 
+    const settleResult = await settleResp.json();
+    console.log("Facilitator settle response:", settleResult);
+
+    if (!settleResult.success) {
+        document.getElementById('settleResult').innerText =
+        `❌ Settlement failed:\n\n${settleResult.errorReason || 'Unknown error'}`;
+        document.getElementById('settleModal').style.display = 'block';
+        return;
+    }
+
+    const txLink = `https://sepolia.basescan.org/tx/${settleResult.transaction}`;
+    document.getElementById('settleResult').innerHTML =
+        `✅ <strong>Settlement succeeded!</strong><br><br>` +
+        `Transaction: ${settleResult.transaction}<br>` +
+        `Network: ${settleResult.network}<br>` +
+        `Payer: ${settleResult.payer || 'N/A'}<br><br>` +
+        `<a href="${txLink}" target="_blank" rel="noopener noreferrer">View on explorer</a>`;
+
+    document.getElementById('settleModal').style.display = 'block';
+    
+      closeModal();
+    }
+
+    function closeModal() {
+      document.getElementById('errorModal').style.display = 'none';
+    }
+
+    function closeVerifyModal() {
+        document.getElementById('verifyErrorModal').style.display = 'none';
+  }
+
+    let currentSchema = null;
+
+    document.querySelectorAll('.resource-link').forEach(link => {
+      link.addEventListener('click', async (event) => {
+        event.preventDefault();
+        const href = link.href;
+
+        try {
+          const res = await fetch(href);
+          if (!res.ok && res.status === 402) {
+            const data = await res.json();
+            const schema = data.accepts[0];
+            currentSchema = schema;
+
+            const amount = schema.maxAmountRequired;
+            const token = schema.extra.name;
+            const network = schema.network;
+            window.lastPaymentRequirement = data.accepts?.[0]; // store for signing
+
+
+            document.getElementById('errorMessage').innerText =
+              `A payment of ${amount} ${token} on network ${network} is required.`;
+
+            document.getElementById('errorModal').style.display = 'block';
+          } else {
+            window.location = href;
+          }
+        } catch (err) {
+          console.error("Request failed:", err);
+        }
+      });
+    });
+
+    document.getElementById('connectButton').addEventListener('click', async () => {
+  if (typeof window.ethereum !== 'undefined') {
+    try {
+      const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+      const account = accounts[0];
+      document.getElementById('walletAddress').innerText = `Connected: ${account}`;
+    } catch (error) {
+      console.error("User rejected the connection:", error);
+    }
+  } else {
+    alert("MetaMask is not installed.");
+  }
+});
+
+function closeSettleModal() {
+  document.getElementById('settleModal').style.display = 'none';
+}
+  </script>
 </body>
 </html>

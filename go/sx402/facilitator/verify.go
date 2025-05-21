@@ -65,6 +65,8 @@ func SetupClient(c *gin.Context) {
 	c.Next()
 }
 
+var TortugaOperator = common.HexToAddress("0xe1b783Bead4D2FDA861eA16e9D8Fa670AaD18081")
+
 func verifyHandler(c *gin.Context) {
 	enlp, exists := c.Get("envelope")
 	if !exists {
@@ -90,6 +92,15 @@ func verifyHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, response)
 		return
 	}
+
+	//Diagnostic blacklist
+	if payer.Hex() == TortugaOperator.Hex() {
+		reason := "Tortuga Operator has been blacklisted"
+		response.InvalidReason = &reason
+		c.JSON(http.StatusBadRequest, response)
+		return
+	}
+
 	p := payer.Hex()
 	response.Payer = &p
 	// Checks on-chain
@@ -107,7 +118,7 @@ func verifyHandler(c *gin.Context) {
 		return
 	}
 
-	if amount.Cmp(balance) == 0 {
+	if amount.Cmp(balance) == 1 {
 		reason := fmt.Sprintf("Insufficient balance: %v", balance)
 		response.InvalidReason = &reason
 		c.JSON(http.StatusOK, response)
