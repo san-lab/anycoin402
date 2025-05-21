@@ -68,7 +68,7 @@ func X402Middleware(c *gin.Context) {
 	}
 
 	paymentHeader := c.GetHeader(X_PAYMENT_HEADER)
-	resourceURI := fmt.Sprintf("/resource?RESID=%s", rid)
+	resourceURI := fmt.Sprintf("resource?RESID=%s", rid)
 	schema := NewExactEURSSchema(resourceURI, price)
 
 	if paymentHeader == "" {
@@ -122,7 +122,8 @@ func X402Middleware(c *gin.Context) {
 
 }
 
-const facilitatorURI = "https://anycoin402.duckdns.org/facilitator"
+// const facilitatorURI = "https://anycoin402.duckdns.org/facilitator"
+const facilitatorURI = "http://localhost:3010/facilitator"
 
 func validatePayment(env *all712.Envelope) error {
 	// Step 1: Parse the payment header
