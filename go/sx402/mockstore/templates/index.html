@@ -60,6 +60,7 @@
   <div id="errorModal">
     <div id="modalContent">
       <p id="errorMessage"></p>
+      <select id="paymentOptions" style="width: 100%; margin: 8px 0;"></select>
       <button onclick="signAuthorization()">Sign Payment Authorization</button>
       <button onclick="closeModal()">Close</button>
     </div>
@@ -71,86 +72,80 @@
     };
 
     async function signAuthorization() {
-      const now = Math.floor(Date.now() / 1000);
-      const validAfter = now;
-      const validBefore = now + 600;
-      const nonce = '0x' + [...crypto.getRandomValues(new Uint8Array(32))].map(x => x.toString(16).padStart(2, '0')).join('');
+  const selectedIndex = document.getElementById('paymentOptions').value;
+  const schema = currentSchemas[selectedIndex];
 
-      const from = ethereum.selectedAddress;
-      const to = currentSchema.payTo;
-      const value = currentSchema.maxAmountRequired;
-      const chainId = chainIdMap[currentSchema.network];
-      const verifyingContract = currentSchema.asset;
-      const tokenName = currentSchema.extra?.name || "USDC";
-      const tokenVersion =  currentSchema.extra?.version || "2";
-      const tokenAddress = currentSchema.asset;
-        
-      const message = {
-        from,
-        to,
-        value,
-        validAfter,
-        validBefore,
-        nonce
-      };
+  const now = Math.floor(Date.now() / 1000);
+  const validAfter = now;
+  const validBefore = now + 600;
+  const nonce = '0x' + [...crypto.getRandomValues(new Uint8Array(32))].map(x => x.toString(16).padStart(2, '0')).join('');
 
-      const signature = await signTransferAuthorization(message, tokenAddress, tokenName, tokenVersion, chainId);
-      const payload = {
-        x402Version: 1,
-        paymentPayload: {
-          x402Version: 1,
-          scheme: currentSchema.scheme,
-          network: currentSchema.network,
-          payload: {
-            signature,
-            authorization: {
-              from,
-              to,
-              value: value.toString(),
-              validAfter: validAfter.toString(),
-              validBefore: validBefore.toString(),
-              nonce
-            }
-          }
-        },
-        paymentRequirements: currentSchema
-      };
+  const from = ethereum.selectedAddress;
+  const to = schema.payTo;
+  const value = schema.maxAmountRequired;
+  const chainId = chainIdMap[schema.network];
+  const tokenAddress = schema.asset;
+  const tokenName = schema.extra?.name || "USDC";
+  const tokenVersion = schema.extra?.version || "2";
 
-      const href = currentSchema.href;
-      console.log("Calling for the resource with the payment header: ", JSON.stringify(payload.paymentPayload))
+  const message = { from, to, value, validAfter, validBefore, nonce };
 
-      try {
-        const response = await fetch(href, {
-          method: 'GET',
-          headers: {
-            'X-Payment': JSON.stringify(payload.paymentPayload)
-          }
-        });
-        if (response.ok) {
-            const html = await response.text();
-            document.open();
-            document.write(html);
-            document.close();
-        
-        } else {
-          const errorData = await response.json();
-          const errorMessage = `${errorData.error}\n\n${errorData.details}`;
-          alert(`Access denied:\n\n${errorMessage}`);
+  const signature = await signTransferAuthorization(message, tokenAddress, tokenName, tokenVersion, chainId);
+
+  const payload = {
+    x402Version: 1,
+    paymentPayload: {
+      x402Version: 1,
+      scheme: schema.scheme,
+      network: schema.network,
+      payload: {
+        signature,
+        authorization: {
+          from,
+          to,
+          value: value.toString(),
+          validAfter: validAfter.toString(),
+          validBefore: validBefore.toString(),
+          nonce
         }
-
-        
-      } catch (error) {
-        console.error("Error fetching resource with payment:", error);
       }
+    },
+    paymentRequirements: schema
+  };
 
-      closeModal();
+  try {
+    const response = await fetch(currentHref, {
+      method: 'GET',
+      headers: {
+        'X-Payment': JSON.stringify(payload.paymentPayload)
+      }
+    });
+
+    if (response.ok) {
+      const html = await response.text();
+      document.open();
+      document.write(html);
+      document.close();
+    } else {
+      const errorData = await response.json();
+      const errorMessage = `${errorData.error}\n\n${errorData.details}`;
+      alert(`Access denied:\n\n${errorMessage}`);
     }
+
+  } catch (error) {
+    console.error("Error fetching resource with payment:", error);
+  }
+
+  closeModal();
+}
 
     function closeModal() {
       document.getElementById('errorModal').style.display = 'none';
     }
 
-    let currentSchema = null;
+    let currentSchemas = [];
+    let currentHref = null;
+
 
     document.querySelectorAll('.resource-link').forEach(link => {
       link.addEventListener('click', async (event) => {
@@ -159,21 +154,30 @@
 
         try {
           const res = await fetch(href);
+          
           if (!res.ok && res.status === 402) {
             const data = await res.json();
-            const schema = data.accepts[0];
-            currentSchema = schema;
-            currentSchema.href = href;
+            const accepts = data.accepts;
 
-            const amount = schema.maxAmountRequired;
-            const token = schema.extra.name;
-            const network = schema.network;
-            window.lastPaymentRequirement = schema;
+            const select = document.getElementById('paymentOptions');
+            select.innerHTML = ''; // Clear existing options
 
-            document.getElementById('errorMessage').innerText =
-              `A payment of ${amount/1000000} ${token} on network ${network} is required.`;
+            accepts.forEach((schema, index) => {
+              const token = schema.extra?.name || 'Token';
+              const amount = schema.maxAmountRequired;
+              const network = schema.network;
+              const option = document.createElement('option');
+              option.value = index;
+              option.text = `Pay ${amount / 1e6} ${token} on ${network}`;
+              select.appendChild(option);
+            });
 
+            currentSchemas = accepts; // store all schemas
+            currentHref = link.href;  // store href for later use
+
+            document.getElementById('errorMessage').innerText = `Choose a payment method:`;
             document.getElementById('errorModal').style.display = 'block';
+                  
           } else {
             window.location = href;
           }
