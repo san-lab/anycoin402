@@ -1,7 +1,15 @@
 package main
 
-import "github.com/san-lab/sx402/facilitator"
+import (
+	"flag"
+
+	"github.com/san-lab/sx402/facilitator"
+)
 
 func main() {
-	facilitator.Start()
+	withDemoStore := flag.Bool("demoStore", false, "starts the demo store under /store")
+	flag.Parse()
+	//*withDemoStore = true
+	facilitator.Start(*withDemoStore)
+
 }

@@ -33,7 +33,7 @@ func ResourceHandler(c *gin.Context) {
 	}
 
 	// Parse template
-	tmpl, err := template.ParseFiles("templates/story.tmpl")
+	tmpl, err := template.ParseFiles(StorePrefix + "/templates/story.tmpl")
 	if err != nil {
 		c.String(http.StatusInternalServerError, "Template error: %v", err)
 		return

@@ -3,16 +3,16 @@ package facilitator
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/san-lab/sx402/mockstore/store"
 )
 
-func Start() {
+func Start(withStore bool) {
 	router := gin.Default()
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:4021"},
@@ -41,6 +41,9 @@ func Start() {
 		})
 	})
 
+	if withStore {
+		store.Start(router)
+	}
 	// Start the server
 	router.Run(":3010")
 }
@@ -55,7 +58,7 @@ func RequestLogger() gin.HandlerFunc {
 
 		// Read and log Body
 		if c.Request.Body != nil {
-			bodyBytes, _ := ioutil.ReadAll(c.Request.Body)
+			bodyBytes, _ := io.ReadAll(c.Request.Body)
 			log.Printf("Body: %s", string(bodyBytes))
 
 			// Restore the io.ReadCloser to its original state

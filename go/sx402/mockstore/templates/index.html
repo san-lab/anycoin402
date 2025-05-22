@@ -49,9 +49,9 @@
   <p>Select a resource to access:</p>
 
   <ul>
-    <li><a href="/resources?RESID=1" class="resource-link">The King</a></li>
-    <li><a href="/resources?RESID=2" class="resource-link">The Princess</a></li>
-    <li><a href="/resources?RESID=3" class="resource-link">The Jester</a></li>
+    <li><a href="resources?RESID=1" class="resource-link">The King</a></li>
+    <li><a href="resources?RESID=2" class="resource-link">The Princess</a></li>
+    <li><a href="resources?RESID=3" class="resource-link">The Jester</a></li>
   </ul>
 
   <button id="connectButton">Connect to MetaMask</button>
@@ -81,24 +81,10 @@
       const value = currentSchema.maxAmountRequired;
       const chainId = chainIdMap[currentSchema.network];
       const verifyingContract = currentSchema.asset;
-      const domain = {
-        name: currentSchema.extra?.name || "Token",
-        version: currentSchema.extra?.version || "1",
-        chainId,
-        verifyingContract
-      };
-
-      const types = {
-        TransferWithAuthorization: [
-          { name: 'from', type: 'address' },
-          { name: 'to', type: 'address' },
-          { name: 'value', type: 'uint256' },
-          { name: 'validAfter', type: 'uint256' },
-          { name: 'validBefore', type: 'uint256' },
-          { name: 'nonce', type: 'bytes32' }
-        ]
-      };
-
+      const tokenName = currentSchema.extra?.name || "USDC";
+      const tokenVersion =  currentSchema.extra?.version || "2";
+      const tokenAddress = currentSchema.asset;
+        
       const message = {
         from,
         to,
@@ -108,26 +94,7 @@
         nonce
       };
 
-      const typesJson = JSON.stringify({
-        types: {
-          EIP712Domain: [
-            { name: "name", type: "string" },
-            { name: "version", type: "string" },
-            { name: "chainId", type: "uint256" },
-            { name: "verifyingContract", type: "address" }
-          ],
-          ...types
-        },
-        domain,
-        primaryType: "TransferWithAuthorization",
-        message
-      });
-
-      const signature = await ethereum.request({
-        method: 'eth_signTypedData_v4',
-        params: [from, typesJson]
-      });
-
+      const signature = await signTransferAuthorization(message, tokenAddress, tokenName, tokenVersion, chainId);
       const payload = {
         x402Version: 1,
         paymentPayload: {
@@ -229,6 +196,61 @@
         alert("MetaMask is not installed.");
       }
     });
+
+    //----------------
+  async function signTransferAuthorization(authorization, tokenAddress, tokenName = "USDC", tokenVersion = "2", chainId) {
+  const { from, to, value, validAfter, validBefore, nonce } = authorization;
+
+  const domain = {
+    name: tokenName,
+    version: tokenVersion,
+    chainId,
+    verifyingContract: tokenAddress
+  };
+
+  const types = {
+    TransferWithAuthorization: [
+      { name: 'from', type: 'address' },
+      { name: 'to', type: 'address' },
+      { name: 'value', type: 'uint256' },
+      { name: 'validAfter', type: 'uint256' },
+      { name: 'validBefore', type: 'uint256' },
+      { name: 'nonce', type: 'bytes32' }
+    ]
+  };
+
+  const message = {
+    from,
+    to,
+    value,
+    validAfter,
+    validBefore,
+    nonce
+  };
+
+  const typesJson = JSON.stringify({
+    types: {
+      EIP712Domain: [
+        { name: "name", type: "string" },
+        { name: "version", type: "string" },
+        { name: "chainId", type: "uint256" },
+        { name: "verifyingContract", type: "address" }
+      ],
+      ...types
+    },
+    domain,
+    primaryType: "TransferWithAuthorization",
+    message
+  });
+
+  const signature = await ethereum.request({
+    method: 'eth_signTypedData_v4',
+    params: [from, typesJson]
+  });
+
+  return signature;
+}
+
   </script>
 </body>
 </html>

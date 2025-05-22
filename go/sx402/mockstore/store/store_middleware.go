@@ -68,7 +68,7 @@ func X402Middleware(c *gin.Context) {
 	}
 
 	paymentHeader := c.GetHeader(X_PAYMENT_HEADER)
-	resourceURI := fmt.Sprintf("resource?RESID=%s", rid)
+	resourceURI := fmt.Sprintf("%s/resource?RESID=%s", StorePrefix, rid)
 	schema := NewExactEURSSchema(resourceURI, price)
 
 	if paymentHeader == "" {
