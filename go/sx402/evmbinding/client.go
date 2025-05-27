@@ -16,9 +16,28 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
-const base_sepolia = "base-sepolia"
+const Base_sepolia = "base-sepolia"
+const Amoy = "amoy"
+const Sepolia = "sepolia"
+const Holesky = "holesky"
 
-var RpcEndpoints = map[string]string{base_sepolia: "https://sepolia.base.org"}
+var rpcEndpoints = map[string]string{Base_sepolia: "https://sepolia.base.org",
+	Sepolia: "https://ethereum-sepolia-rpc.publicnode.com",
+	Amoy:    "https://rpc-amoy.polygon.technology/",
+	Holesky: "https://ethereum-holesky.publicnode.com",
+}
+
+var ChainIDs = map[string]*big.Int{
+	"base-sepolia": big.NewInt(84532),
+	"sepolia":      big.NewInt(11155111),
+	"amoy":         big.NewInt(80002),
+	"holesky":      big.NewInt(17000),
+}
+
+func GetRPCEndpoint(network string) (string, bool) {
+	rpc, ok := rpcEndpoints[network]
+	return rpc, ok
+}
 
 func SendTransaction(client *ethclient.Client, signedTx *types.Transaction) (*common.Hash, error) {
 
@@ -136,7 +155,7 @@ func TransferWithAuthorization(
 	}
 
 	// Estimate gas
-	gasLimit := uint64(100000) // or estimate with client.EstimateGas()
+	gasLimit := uint64(500000) // or estimate with client.EstimateGas()
 
 	tx := types.NewTransaction(
 		fromNonce,

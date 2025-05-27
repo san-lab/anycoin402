@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log"
 	"math/big"
 	"net/http"
 	"strings"
@@ -19,51 +18,6 @@ import (
 )
 
 type ExtraInfo map[string]string
-
-func ParseEnvelope(c *gin.Context) {
-	log.Println("in middleware")
-	var payload all712.Envelope
-	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON: " + err.Error()})
-		return
-	}
-
-	if payload.X402Version == 0 {
-		reason := "Empty envelope/nil Version"
-		c.JSON(http.StatusBadRequest, gin.H{"error": reason})
-	}
-	c.Set("envelope", payload)
-	c.Next()
-}
-func SetupClient(c *gin.Context) {
-	enlp, exists := c.Get("envelope")
-	if !exists {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Envelope not found"})
-		return
-	}
-	payload := enlp.(all712.Envelope)
-
-	network := payload.PaymentPayload.Network
-	if len(network) == 0 {
-		reason := "No network specified"
-		c.JSON(http.StatusBadRequest, gin.H{"error": reason})
-		return
-	}
-	url, ok := evmbinding.RpcEndpoints[network]
-	if !ok {
-		reason := "Unsupported network: " + network
-		c.JSON(http.StatusBadRequest, gin.H{"error": reason})
-		return
-	}
-	client, err := ethclient.Dial(url)
-	if err != nil {
-		reason := fmt.Sprintf("could not connect to rpc: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": reason})
-		return
-	}
-	c.Set("client", client)
-	c.Next()
-}
 
 var TortugaOperator = common.HexToAddress("0xe1b783Bead4D2FDA861eA16e9D8Fa670AaD18081")
 
@@ -169,7 +123,7 @@ func FormallyVerifyEnvelope(envelope *all712.Envelope) (amount, chainID *big.Int
 	}
 
 	asset = common.HexToAddress(envelope.PaymentRequirements.Asset)
-	chainID, ok = all712.ChainIDs[envelope.PaymentPayload.Network]
+	chainID, ok = evmbinding.ChainIDs[envelope.PaymentPayload.Network]
 	if !ok {
 		err = fmt.Errorf("Unsupported network: %s", envelope.PaymentPayload.Network)
 		return

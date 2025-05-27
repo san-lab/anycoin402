@@ -15,7 +15,6 @@ import (
 )
 
 type EVMPayload types.ExactEvmPayload
-type Authorization types.ExactEvmPayloadAuthorization
 
 /*
 type Payload struct {

@@ -67,17 +67,32 @@
   </div>
 
   <script>
-    const chainIdMap = {
-      "base-sepolia": 84532
+     const chainIdMap = {
+        {{- range $key, $value := .ChainIDs }}
+        "{{$key}}": {{$value}},
+        {{- end }}
     };
 
     async function signAuthorization() {
+
+      // Check current network
+  const currentChainIdHex = await ethereum.request({ method: 'eth_chainId' });
+  const currentChainId = parseInt(currentChainIdHex, 16);
+
   const selectedIndex = document.getElementById('paymentOptions').value;
   const schema = currentSchemas[selectedIndex];
+  
+  const expectedChainId = chainIdMap[schema.network];
+  console.log("chainids:", currentChainId, expectedChainId);
+
+  if (currentChainId !== expectedChainId) {
+    alert(`Please switch your wallet network to ${schema.network} (chainId ${expectedChainId}) before signing.`);
+    return; // stop here
+  }
 
   const now = Math.floor(Date.now() / 1000);
-  const validAfter = now;
-  const validBefore = now + 600;
+  const validAfter = 0;
+  const validBefore = now + 86400;
   const nonce = '0x' + [...crypto.getRandomValues(new Uint8Array(32))].map(x => x.toString(16).padStart(2, '0')).join('');
 
   const from = ethereum.selectedAddress;
@@ -85,7 +100,7 @@
   const value = schema.maxAmountRequired;
   const chainId = chainIdMap[schema.network];
   const tokenAddress = schema.asset;
-  const tokenName = schema.extra?.name || "USDC";
+  const tokenName = schema.extra.name;
   const tokenVersion = schema.extra?.version || "2";
 
   const message = { from, to, value, validAfter, validBefore, nonce };
@@ -112,6 +127,8 @@
     },
     paymentRequirements: schema
   };
+
+  console.log("payload:", payload);
 
   try {
     const response = await fetch(currentHref, {
@@ -205,6 +222,8 @@
   async function signTransferAuthorization(authorization, tokenAddress, tokenName = "USDC", tokenVersion = "2", chainId) {
   const { from, to, value, validAfter, validBefore, nonce } = authorization;
 
+  console.log("Signature request", authorization, tokenAddress, tokenName, tokenVersion, chainId);
+
   const domain = {
     name: tokenName,
     version: tokenVersion,
@@ -254,6 +273,34 @@
 
   return signature;
 }
+
+async function checkWalletConnection() {
+  if (typeof window.ethereum !== 'undefined') {
+    try {
+      const accounts = await ethereum.request({ method: 'eth_accounts' });
+      if (accounts.length > 0) {
+        const account = accounts[0];
+        document.getElementById('walletAddress').innerText = `Connected: ${account}`;
+        return true;
+      } else {
+        document.getElementById('walletAddress').innerText = 'Wallet not connected';
+        return false;
+      }
+    } catch (error) {
+      console.error("Error checking wallet accounts:", error);
+      return false;
+    }
+  } else {
+    document.getElementById('walletAddress').innerText = "MetaMask not installed";
+    return false;
+  }
+}
+
+// Call this on page load
+window.addEventListener('load', () => {
+  checkWalletConnection();
+});
+
 
   </script>
 </body>

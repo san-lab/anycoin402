@@ -11,6 +11,8 @@ import (
 	"github.com/coinbase/x402/go/pkg/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/san-lab/sx402/evmbinding"
+	"github.com/san-lab/sx402/schemas"
 )
 
 var boss = common.HexToAddress("0xaab05558448C8a9597287Db9F61e2d751645B12a")
@@ -26,14 +28,14 @@ func TestSignature(t *testing.T) {
 
 	nonce := crypto.Keccak256Hash([]byte("SixthNonce"))
 	log.Printf("nonce: 0x%x\n", nonce)
-	tokenName := "EURO_S"
+	tokenName := "USDC"
 
 	from := boss
 	//to := common.HexToAddress("0x64A8303112D05027F1f1d4ed7e54482799861db0")
-	to := common.HexToAddress("0x8cE22df7DE8FC669D0727eeC2C99b0063d7D2ECC")
+	to := boss
 	tokenVersion := "2"
 
-	auth := Authorization{
+	auth := types.ExactEvmPayloadAuthorization{
 		From:        from.Hex(),
 		To:          to.Hex(),
 		Value:       "1500",
@@ -42,7 +44,7 @@ func TestSignature(t *testing.T) {
 		Nonce:       nonce.Hex(),
 	}
 
-	sig, err := SignERC3009Authorization(&auth, privkey, sepoliaChainId, tokenName, tokenVersion, BaseSepoliaEURSAddress)
+	sig, err := SignERC3009Authorization(&auth, privkey, big.NewInt(80002), tokenName, tokenVersion, common.HexToAddress(schemas.AMOY_USDC))
 	if err != nil {
 		t.Error(err)
 	}
@@ -70,6 +72,8 @@ func TestAddSignature(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	preq.Asset = schemas.AMOY_USDC
+
 	preq.MaxAmountRequired = "1234"
 	privkeyhex := "56c11c2fee673894e85151857339066cd244d4932f23e660ce8502c867d0927e"
 	privkey, err := crypto.HexToECDSA(privkeyhex)
@@ -123,25 +127,39 @@ func TestJMignature(t *testing.T) {
 	log.Println(ok, "recovered payer: ", recovered)
 }
 
-const message1 = `{"from" : "0xcef702bd69926b13ab7150624daa7afee0300786",
-"nonce": "0x0b38c4346596ec21682d78991d9337bafe26e7b772b3c99457b1d4b00e1862d4",
+const message1 = `{"from" : "0xaab05558448c8a9597287db9f61e2d751645b12a",
+"nonce": "0x6ee9e29abfc331d7f4552fe55bd5ff45ebe67c5b0423172533dd1c882ac92a98",
 "to": "0xCEF702Bd69926B13ab7150624daA7aFEE0300786",
-"validAfter":"1747751973",
-"validBefore": "1747752573",
-"value": "2000"}`
+"validAfter":"1748356918",
+"validBefore": "1748357518",
+"value": "2200"}`
 
-const sig1 = `0xc7aac39eb838c7bc03d2f6a829257a0f184dd6f5752483115251014180fdd4fb710c00bae8aed1921b13cdcb84600c7206bd6d034d1cdbb92fc6e4e493be9d9c1c`
+const sig1 = `0xde7c0389cfd4fa942b67f6d243a3658019491f2db1e4a5414ac81d8cc69bb8be54331f0a77ecea4d44aa9efa2261d45e2fe0f0237ecd43af623a957104c93d5d1b`
 
 const message2 = `{"from":"0xcef702bd69926b13ab7150624daa7afee0300786","to":"0xCEF702Bd69926B13ab7150624daA7aFEE0300786","value":"2000","validAfter":"1747814778","validBefore":"1747815378","nonce":"0x75d69d62a999e935e2ad4741616c56ae36a751ebfbdcef0bb44c0203f0db650b"}`
 const sig2 = `0xe6f5066174d74b16f49e28e00d83b35e14e1bb3325006213ffecafc12e2b146e538f9addef06512951693c2e7c35b29fceea9f1c0f58abb92aebca22bd9b3c7a1b`
 
 func TestMessage(t *testing.T) {
 	auth := new(types.ExactEvmPayloadAuthorization)
-	err := json.Unmarshal([]byte(message2), auth)
+	err := json.Unmarshal([]byte(message1), auth)
 	if err != nil {
 		t.Error(err)
 	}
-	_, payer, err := VerifyTransferWithAuthorizationSignature(sig2, *auth, "EURO_S", "2", big.NewInt(84532), BaseSepoliaEURSAddress)
+	_, payer, err := VerifyTransferWithAuthorizationSignature(sig1, *auth, "USDC", "2", big.NewInt(80002), common.HexToAddress(schemas.AMOY_USDC))
+	fmt.Println(payer, err)
+
+	privkeyhex := "56c11c2fee673894e85151857339066cd244d4932f23e660ce8502c867d0927e"
+	privkey, err := crypto.HexToECDSA(privkeyhex)
+	if err != nil {
+		t.Error(err)
+
+	}
+
+	nonce := crypto.Keccak256Hash([]byte("SixthNonce"))
+	auth.Nonce = nonce.Hex()
+
+	sig2, err := SignERC3009Authorization(auth, privkey, big.NewInt(80002), "USDC", "2", common.HexToAddress(schemas.AMOY_USDC))
+	_, payer, err = VerifyTransferWithAuthorizationSignature(fmt.Sprintf("0x%x", sig2), *auth, "USDC", "2", big.NewInt(80002), common.HexToAddress(schemas.AMOY_USDC))
 	fmt.Println(payer, err)
 
 }
@@ -165,4 +183,10 @@ func TestJMH(t *testing.T) {
 	_, payer, err := VerifyTransferWithAuthorizationSignature(ph.Payload.Signature, *auth, "USDC", "2", big.NewInt(84532), common.HexToAddress("0x036CbD53842c5426634e7929541eC2318f3dCF7e"))
 	fmt.Println(payer, err)
 
+}
+
+func TestDomain(t *testing.T) {
+	dsh := MakeDomainSeparator("USDC", "2", evmbinding.ChainIDs["amoy"], common.HexToAddress(schemas.AMOY_USDC))
+
+	fmt.Println(dsh.Hex())
 }

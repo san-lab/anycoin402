@@ -11,61 +11,13 @@ import (
 	"github.com/coinbase/x402/go/pkg/types"
 	"github.com/gin-gonic/gin"
 	"github.com/san-lab/sx402/all712"
+	"github.com/san-lab/sx402/evmbinding"
+	"github.com/san-lab/sx402/schemas"
 )
 
 const X_PAYMENT_HEADER = "X-Payment"
 
-/*
-	struct {
-		Scheme            string            `json:"scheme"`
-		Network           string            `json:"network"`
-		MaxAmountRequired string            `json:"maxAmountRequired"`
-		Resource          string            `json:"resource"`
-		Description       string            `json:"description"`
-		MimeType          string            `json:"mimeType"`
-		PayTo             string            `json:"payTo"`
-		MaxTimeoutSeconds int               `json:"maxTimeoutSeconds"`
-		Asset             string            `json:"asset"`
-		Extra             map[string]string `json:"extra"`
-	}
-*/
-var EURO_SSchemaExtraBytes []byte
-var USDC_SchemaExtraBytes []byte
-
-func init() {
-	var err error
-	EURO_SSchemaExtraBytes, err = json.Marshal(map[string]string{"name": "EURO_S", "version": "2"})
-	if err != nil {
-		log.Fatal(err)
-	}
-	USDC_SchemaExtraBytes, err = json.Marshal(map[string]string{"name": "USDC", "version": "2"})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-}
-
-func NewExactEURSSchema(resource string, price string) *types.PaymentRequirements {
-	return &types.PaymentRequirements{Scheme: "EURS", Network: "base-sepolia",
-		PayTo:             "0xCEF702Bd69926B13ab7150624daA7aFEE0300786", //Tortuga_Governor
-		MaxTimeoutSeconds: 120,
-		Asset:             "0x6Ac14e603A2742fB919248D66c8ecB05D8Aec1e9",
-		MaxAmountRequired: price,
-		Resource:          resource,
-		Extra:             (*json.RawMessage)(&EURO_SSchemaExtraBytes),
-	}
-}
-
-func NewExactUSDCSchema(resource string, price string) *types.PaymentRequirements {
-	return &types.PaymentRequirements{Scheme: "exact", Network: "base-sepolia",
-		PayTo:             "0xCEF702Bd69926B13ab7150624daA7aFEE0300786", //Tortuga_Governor
-		MaxTimeoutSeconds: 120,
-		Asset:             "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-		MaxAmountRequired: price,
-		Resource:          resource,
-		Extra:             (*json.RawMessage)(&USDC_SchemaExtraBytes),
-	}
-}
+const store_wallet = "0xCEF702Bd69926B13ab7150624daA7aFEE0300786"
 
 var prices = map[string]string{"1": "1000", "2": "2000", "3": "3000"}
 
@@ -87,17 +39,46 @@ func X402Middleware(c *gin.Context) {
 
 	paymentHeader := c.GetHeader(X_PAYMENT_HEADER)
 	resourceURI := fmt.Sprintf("%s/resource?RESID=%s", StorePrefix, rid)
-	schemaEURS := NewExactEURSSchema(resourceURI, price)
+	network := evmbinding.Base_sepolia
+	usdcs, err := schemas.GetSchema("exact", network)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+	euros, err := schemas.GetSchema("EUROS", network)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
+	amoyusdc, err := schemas.GetSchema("exact", evmbinding.Amoy)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
+	sepoliaeurc, err := schemas.GetSchema("EURC", evmbinding.Sepolia)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
+	reqEUROS := euros.Requirement(resourceURI, price, store_wallet)
 	europrice, _ := strconv.Atoi(price)
 	usdprice := europrice * 11 / 10
-	schemaUSDC := NewExactUSDCSchema(resourceURI, fmt.Sprintf("%v", usdprice))
+	reqUSDC := usdcs.Requirement(resourceURI, fmt.Sprintf("%v", usdprice), store_wallet)
+	reqAmoyUSDC := amoyusdc.Requirement(resourceURI, fmt.Sprintf("%v", usdprice), store_wallet)
+
+	reqSepoliaEURC := sepoliaeurc.Requirement(resourceURI, price, store_wallet)
+
+	accepts := []*types.PaymentRequirements{reqEUROS, reqUSDC, reqAmoyUSDC, reqSepoliaEURC}
 
 	if paymentHeader == "" {
 
 		response := gin.H{
 			"x402Version": 1,
 			"error":       "X-PAYMENT header is required",
-			"accepts":     []any{schemaEURS, schemaUSDC},
+			"accepts":     accepts,
 		}
 		c.JSON(http.StatusPaymentRequired, response)
 		c.Abort()
@@ -108,16 +89,23 @@ func X402Middleware(c *gin.Context) {
 	headerPayload := new(types.PaymentPayload)
 	if err := json.Unmarshal([]byte(paymentHeader), &headerPayload); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad X-Payment header"})
+		c.Abort()
+		return
 	}
-	var schema *types.PaymentRequirements
-	if headerPayload.Scheme == "EURS" {
-		schema = schemaEURS
-	} else {
-		schema = schemaUSDC
+
+	for _, req := range accepts {
+		if req.Network == headerPayload.Network && req.Scheme == headerPayload.Scheme {
+			env.PaymentRequirements = req
+			break
+		}
+	}
+	if env.PaymentRequirements == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad X-Payment header"})
+		c.Abort()
+		return
 	}
 
 	env.X402Version = 1
-	env.PaymentRequirements = schema
 	env.PaymentPayload = headerPayload
 
 	if err := validatePayment(env); err != nil {
@@ -149,9 +137,10 @@ func X402Middleware(c *gin.Context) {
 
 }
 
-const facilitatorURI = "https://anycoin402.duckdns.org/facilitator"
+//const facilitatorURI = "https://anycoin402.duckdns.org/facilitator"
 
-// const facilitatorURI = "http://localhost:3010/facilitator"
+const facilitatorURI = "http://localhost:3010/facilitator"
+
 //const facilitatorURI = "https://x402.org/facilitator"
 
 func validatePayment(env *all712.Envelope) error {

@@ -16,7 +16,7 @@ var BaseSepoliaEURSAddress = common.HexToAddress("0x6Ac14e603A2742fB919248D66c8e
 var boss = common.HexToAddress("0xaab05558448C8a9597287Db9F61e2d751645B12a")
 
 func TestGetBalance(t *testing.T) {
-	client, _ := ethclient.Dial(RpcEndpoints["base-sepolia"])
+	client, _ := ethclient.Dial(rpcEndpoints["base-sepolia"])
 	b, e := CheckTokenBalance(client, BaseSepoliaUSDCAddress, boss)
 	if e != nil {
 		t.Error(e)

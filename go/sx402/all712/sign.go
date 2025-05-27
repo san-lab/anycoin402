@@ -13,6 +13,7 @@ import (
 	"github.com/coinbase/x402/go/pkg/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/san-lab/sx402/evmbinding"
 )
 
 var endOfMay = big.NewInt(1748735999)
@@ -22,7 +23,7 @@ var BaseSepoliaUSDCAddress = common.HexToAddress("0x036CbD53842c5426634e7929541e
 var BaseSepoliaEURSAddress = common.HexToAddress("0x6Ac14e603A2742fB919248D66c8ecB05D8Aec1e9")
 
 func SignERC3009Authorization(
-	auth *Authorization,
+	auth *types.ExactEvmPayloadAuthorization,
 	privateKey *ecdsa.PrivateKey,
 	chainID *big.Int,
 	tokenName string,
@@ -91,15 +92,15 @@ func AddAuthorizationSignature(paymentReqs *types.PaymentRequirements, from_key 
 
 	asset := common.HexToAddress(paymentReqs.Asset)
 
-	chainID, ok := ChainIDs[ppld.Network]
+	chainID, ok := evmbinding.ChainIDs[ppld.Network]
 	if !ok {
 		return nil, errors.New("Unknown network: " + ppld.Network)
 	}
 	timestring := time.Now().GoString()
 	nonce := crypto.Keccak256([]byte(timestring))
 	ppld.Payload.Authorization.Nonce = "0x" + hex.EncodeToString(nonce)
-	auth := Authorization(*ppld.Payload.Authorization)
-	bts, err := SignERC3009Authorization(&auth, from_key, chainID, extra["name"], extra["version"], asset)
+	auth := ppld.Payload.Authorization
+	bts, err := SignERC3009Authorization(auth, from_key, chainID, extra["name"], extra["version"], asset)
 	if err != nil {
 		return nil, fmt.Errorf("Error signing: %w", err)
 	}
@@ -108,5 +109,3 @@ func AddAuthorizationSignature(paymentReqs *types.PaymentRequirements, from_key 
 
 	return ppld, nil
 }
-
-var ChainIDs = map[string]*big.Int{"base-sepolia": big.NewInt(84532)}
