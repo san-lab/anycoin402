@@ -129,13 +129,14 @@ func X402Middleware(c *gin.Context) {
 		explorer := evmbinding.ExplorerURLs[headerPayload.Network]
 		c.Set("explorer", explorer)
 		c.Next()
-	}
+	} else {
 
-	c.JSON(http.StatusForbidden, gin.H{
-		"settling error": settleResponse.ErrorReason,
-	})
-	c.Abort()
-	return
+		c.JSON(http.StatusForbidden, gin.H{
+			"settling error": settleResponse.ErrorReason,
+		})
+		c.Abort()
+		return
+	}
 
 }
 

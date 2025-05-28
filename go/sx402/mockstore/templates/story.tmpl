@@ -7,6 +7,20 @@
     body { font-family: Georgia, serif; margin: 40px; line-height: 1.6; }
     h1 { font-size: 24px; margin-bottom: 20px; }
     .story { margin-top: 30px; }
+    .back-button {
+      display: inline-block;
+      margin-top: 30px;
+      padding: 10px 20px;
+      font-size: 16px;
+      text-decoration: none;
+      background-color: #007BFF;
+      color: white;
+      border-radius: 6px;
+      transition: background-color 0.2s ease-in-out;
+    }
+    .back-button:hover {
+      background-color: #0056b3;
+    }
   </style>
 </head>
 <body>
@@ -20,5 +34,9 @@
     </code>
   </p>
   <div class="story">{{.Content}}</div>
+
+  <!-- Back to Landing Page Button -->
+  <a href="." class="back-button">← Back to Landing Page</a>
+
 </body>
 </html>
