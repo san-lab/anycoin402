@@ -85,9 +85,12 @@
   const expectedChainId = chainIdMap[schema.network];
   console.log("chainids:", currentChainId, expectedChainId);
 
+  const currentNetworkName = Object.keys(chainIdMap).find(key => chainIdMap[key] === currentChainId) || 'Unknown';
+
   if (currentChainId !== expectedChainId) {
-    alert(`Please switch your wallet network to ${schema.network} (chainId ${expectedChainId}) before signing.`);
-    return; // stop here
+    alert(`Please switch your wallet network to ${schema.network} (chainId ${expectedChainId}) before signing.\n\n` +
+    `Your current network is ${currentNetworkName} (${currentChainId}).`);
+    return
   }
 
   const now = Math.floor(Date.now() / 1000);
