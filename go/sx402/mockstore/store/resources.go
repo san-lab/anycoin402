@@ -54,7 +54,7 @@ func ResourceHandler(c *gin.Context) {
 		Explorer:    explorer,
 		Content:     template.HTML(Stories[idx-1]),
 		Network:     c.GetString("network"),
-		Facilitator: c.GetString("facilitator") + "/receipt",
+		Facilitator: "/facilitator/receipt",
 		Status:      "Unknown",
 	}
 
