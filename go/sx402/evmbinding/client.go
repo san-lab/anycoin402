@@ -7,6 +7,7 @@ import (
 	"log"
 	"math/big"
 	"strings"
+	"sync"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -43,6 +44,31 @@ var ChainIDs = map[string]*big.Int{
 	Amoy:           big.NewInt(80002),
 	Holesky:        big.NewInt(17000),
 	ZkSync_sepolia: big.NewInt(300),
+}
+
+func InitClients() map[string]*ethclient.Client {
+	clients := make(map[string]*ethclient.Client)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	for network, url := range rpcEndpoints {
+		wg.Add(1)
+		go func(network, url string) {
+			defer wg.Done()
+			client, err := ethclient.Dial(url)
+			if err != nil {
+				log.Printf("❌ Failed to connect to %s: %v", network, err)
+				return
+			}
+			log.Printf("✅ Connected to %s", network)
+			mu.Lock()
+			clients[network] = client
+			mu.Unlock()
+		}(network, url)
+	}
+
+	wg.Wait()
+	return clients
 }
 
 func GetRPCEndpoint(network string) (string, bool) {
