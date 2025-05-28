@@ -20,25 +20,29 @@ const Base_sepolia = "base-sepolia"
 const Amoy = "amoy"
 const Sepolia = "sepolia"
 const Holesky = "holesky"
+const ZkSync_sepolia = "zksync-sepolia"
 
 var rpcEndpoints = map[string]string{Base_sepolia: "https://sepolia.base.org",
-	Sepolia: "https://ethereum-sepolia-rpc.publicnode.com",
-	Amoy:    "https://rpc-amoy.polygon.technology/",
-	Holesky: "https://ethereum-holesky.publicnode.com",
+	Sepolia:        "https://ethereum-sepolia-rpc.publicnode.com",
+	Amoy:           "https://rpc-amoy.polygon.technology/",
+	Holesky:        "https://ethereum-holesky.publicnode.com",
+	ZkSync_sepolia: "https://sepolia.era.zksync.dev",
 }
 
 var ExplorerURLs = map[string]string{
-	Base_sepolia: "https://sepolia.basescan.org", // Basescan (Etherscan-style)
-	Sepolia:      "https://sepolia.etherscan.io", // Official Sepolia Etherscan
-	Amoy:         "https://amoy.polygonscan.com", // Polygonscan for Amoy
-	Holesky:      "https://holesky.etherscan.io", // Etherscan for Holesky
+	Base_sepolia:   "https://sepolia.basescan.org", // Basescan (Etherscan-style)
+	Sepolia:        "https://sepolia.etherscan.io", // Official Sepolia Etherscan
+	Amoy:           "https://amoy.polygonscan.com", // Polygonscan for Amoy
+	Holesky:        "https://holesky.etherscan.io", // Etherscan for Holesky
+	ZkSync_sepolia: "https://sepolia-era.zksync.network/",
 }
 
 var ChainIDs = map[string]*big.Int{
-	"base-sepolia": big.NewInt(84532),
-	"sepolia":      big.NewInt(11155111),
-	"amoy":         big.NewInt(80002),
-	"holesky":      big.NewInt(17000),
+	Base_sepolia:   big.NewInt(84532),
+	Sepolia:        big.NewInt(11155111),
+	Amoy:           big.NewInt(80002),
+	Holesky:        big.NewInt(17000),
+	ZkSync_sepolia: big.NewInt(300),
 }
 
 func GetRPCEndpoint(network string) (string, bool) {

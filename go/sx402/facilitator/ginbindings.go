@@ -13,7 +13,12 @@ import (
 	"github.com/san-lab/sx402/schemas"
 )
 
-func Start(withStore bool) {
+func Start(withStore bool, facilitatorPassword []byte) {
+	err := InitKeys(facilitatorPassword)
+	if err != nil {
+		log.Fatal("error initializig keys:", err)
+		return
+	}
 	router := gin.Default()
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:4021"},

@@ -24,7 +24,7 @@ struct {
 }
 */
 
-var EURO_SSchemaExtraBytes []byte
+var EURO_S_SchemaExtraBytes []byte
 var USDC_SchemaExtraBytes []byte
 var EURC_SchemaExtraBytes []byte
 
@@ -38,32 +38,36 @@ const BASE_SEPOLIA_USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
 const AMOY_USDC = "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582"
 const SEPOLIA_EURC = "0x08210F9170F89Ab7658F0B5E3fF39b0E03C594D4"
 const SEPOLIA_USDC = "0x93dB8F200E46FD10dbA87E7563148C3cf6985352"
+const ZKSYNC_SEPOLIA_USDC = "0xAe045DE5638162fa134807Cb558E15A3F5A7F853"
 
 var UsdcOnBaseSepolia = Scheme{"exact", evmbinding.Base_sepolia}
 var EurosOnBaseSepolia = Scheme{"EUROS", evmbinding.Base_sepolia}
 var UsdcOnAmoy = Scheme{"exact", evmbinding.Amoy}
 var EurcOnSepolia = Scheme{"EURC", evmbinding.Sepolia}
 var UsdcOnSepolia = Scheme{"USDC", evmbinding.Sepolia}
+var UsdcOnZksyncSepolia = Scheme{"exact", evmbinding.ZkSync_sepolia}
 
 var Assets = map[Scheme]string{
-	UsdcOnBaseSepolia:  BASE_SEPOLIA_USDC,
-	EurosOnBaseSepolia: BASE_SEPOLIA_EUROS,
-	UsdcOnAmoy:         AMOY_USDC,
-	EurcOnSepolia:      SEPOLIA_EURC,
-	UsdcOnSepolia:      SEPOLIA_USDC,
+	UsdcOnBaseSepolia:   BASE_SEPOLIA_USDC,
+	EurosOnBaseSepolia:  BASE_SEPOLIA_EUROS,
+	UsdcOnAmoy:          AMOY_USDC,
+	EurcOnSepolia:       SEPOLIA_EURC,
+	UsdcOnSepolia:       SEPOLIA_USDC,
+	UsdcOnZksyncSepolia: ZKSYNC_SEPOLIA_USDC,
 }
 
 var extras = map[Scheme]*json.RawMessage{
-	UsdcOnBaseSepolia:  (*json.RawMessage)(&USDC_SchemaExtraBytes),
-	EurosOnBaseSepolia: (*json.RawMessage)(&EURO_SSchemaExtraBytes),
-	UsdcOnAmoy:         (*json.RawMessage)(&USDC_SchemaExtraBytes),
-	UsdcOnSepolia:      (*json.RawMessage)(&USDC_SchemaExtraBytes),
-	EurcOnSepolia:      (*json.RawMessage)(&EURC_SchemaExtraBytes),
+	UsdcOnBaseSepolia:   (*json.RawMessage)(&USDC_SchemaExtraBytes),
+	EurosOnBaseSepolia:  (*json.RawMessage)(&EURO_S_SchemaExtraBytes),
+	UsdcOnAmoy:          (*json.RawMessage)(&USDC_SchemaExtraBytes),
+	UsdcOnSepolia:       (*json.RawMessage)(&USDC_SchemaExtraBytes),
+	EurcOnSepolia:       (*json.RawMessage)(&EURC_SchemaExtraBytes),
+	UsdcOnZksyncSepolia: (*json.RawMessage)(&USDC_SchemaExtraBytes),
 }
 
 func init() {
 	var err error
-	EURO_SSchemaExtraBytes, err = json.Marshal(map[string]string{"name": "EURO_S", "version": "2"})
+	EURO_S_SchemaExtraBytes, err = json.Marshal(map[string]string{"name": "EURO_S", "version": "2"})
 	if err != nil {
 		log.Fatal(err)
 	}

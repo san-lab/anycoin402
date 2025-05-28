@@ -39,39 +39,53 @@ func X402Middleware(c *gin.Context) {
 
 	paymentHeader := c.GetHeader(X_PAYMENT_HEADER)
 	resourceURI := fmt.Sprintf("%s/resource?RESID=%s", StorePrefix, rid)
+
+	europrice, _ := strconv.Atoi(price)
+	usdpricei := europrice * 11 / 10
+	usdprice := fmt.Sprintf("%v", usdpricei)
+
+	accepts := []*types.PaymentRequirements{}
+
 	network := evmbinding.Base_sepolia
 	usdcs, err := schemas.GetSchema("exact", network)
 	if err != nil {
-		log.Fatal(err)
-		return
+		log.Println(err)
+
+	} else {
+
+		accepts = append(accepts, usdcs.Requirement(resourceURI, usdprice, store_wallet))
 	}
 	euros, err := schemas.GetSchema("EUROS", network)
 	if err != nil {
-		log.Fatal(err)
-		return
+		log.Println(err)
+
+	} else {
+		accepts = append(accepts, euros.Requirement(resourceURI, price, store_wallet))
 	}
 
 	amoyusdc, err := schemas.GetSchema("exact", evmbinding.Amoy)
 	if err != nil {
-		log.Fatal(err)
-		return
+		log.Println(err)
+
+	} else {
+		accepts = append(accepts, amoyusdc.Requirement(resourceURI, usdprice, store_wallet))
 	}
 
 	sepoliaeurc, err := schemas.GetSchema("EURC", evmbinding.Sepolia)
 	if err != nil {
-		log.Fatal(err)
-		return
+		log.Println(err)
+
+	} else {
+		accepts = append(accepts, sepoliaeurc.Requirement(resourceURI, price, store_wallet))
 	}
 
-	reqEUROS := euros.Requirement(resourceURI, price, store_wallet)
-	europrice, _ := strconv.Atoi(price)
-	usdprice := europrice * 11 / 10
-	reqUSDC := usdcs.Requirement(resourceURI, fmt.Sprintf("%v", usdprice), store_wallet)
-	reqAmoyUSDC := amoyusdc.Requirement(resourceURI, fmt.Sprintf("%v", usdprice), store_wallet)
+	zksyncussdc, err := schemas.GetSchema("exact", evmbinding.ZkSync_sepolia)
+	if err != nil {
+		log.Println(err)
 
-	reqSepoliaEURC := sepoliaeurc.Requirement(resourceURI, price, store_wallet)
-
-	accepts := []*types.PaymentRequirements{reqEUROS, reqUSDC, reqAmoyUSDC, reqSepoliaEURC}
+	} else {
+		accepts = append(accepts, zksyncussdc.Requirement(resourceURI, usdprice, store_wallet))
+	}
 
 	if paymentHeader == "" {
 
@@ -119,7 +133,7 @@ func X402Middleware(c *gin.Context) {
 
 	settleResponse, err := settlePayment(env)
 	if err != nil {
-		c.JSON(http.StatusPaymentRequired, gin.H{"error settling payment": err})
+		c.JSON(http.StatusPaymentRequired, gin.H{"error": "error settling the payment", "details": err.Error()})
 		c.Abort()
 		return
 	}
@@ -132,7 +146,7 @@ func X402Middleware(c *gin.Context) {
 	} else {
 
 		c.JSON(http.StatusForbidden, gin.H{
-			"settling error": settleResponse.ErrorReason,
+			"error": settleResponse.ErrorReason,
 		})
 		c.Abort()
 		return
@@ -190,7 +204,7 @@ func settlePayment(env *all712.Envelope) (*types.SettleResponse, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("facilitator rejected procesing the payment: %s", resp.Status)
+		return nil, fmt.Errorf("facilitator rejected processing the payment: %s", resp.Status)
 	}
 
 	stres := new(types.SettleResponse)

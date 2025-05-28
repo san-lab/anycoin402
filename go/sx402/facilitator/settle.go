@@ -1,22 +1,54 @@
 package facilitator
 
 import (
+	"crypto/ecdsa"
 	"encoding/hex"
 	"fmt"
 	"math/big"
 	"net/http"
 	"strings"
 
+	"log"
+
 	"github.com/coinbase/x402/go/pkg/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/gin-gonic/gin"
+	kms "github.com/proveniencenft/kmsclitool/common"
 	"github.com/san-lab/sx402/all712"
 	"github.com/san-lab/sx402/evmbinding"
 )
 
+var keyfile_name = "0xfAc178B1C359D41e9162A1A6385380de96809048.json"
+
+func InitKeys(password []byte) error {
+	kf, err := kms.ReadKeyfile(keyfile_name)
+	if err != nil || kf == nil {
+
+		return fmt.Errorf("Error loading keyfile %s: %w", keyfile_name, err)
+	}
+	err = kf.Decrypt(password)
+	if err != nil {
+		log.Fatal("Error decrypting keyfile", keyfile_name, err)
+	}
+	fpk, err = crypto.ToECDSA(kf.Plaintext)
+	if err != nil {
+		return err
+	}
+	fmt.Println(crypto.PubkeyToAddress(fpk.PublicKey))
+
+	return nil
+}
+
+var fpk *ecdsa.PrivateKey
+
 func SettleHandler(c *gin.Context) {
+	if fpk == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Facilitator not properly initialized"})
+		c.Abort()
+		return
+	}
 
 	response := types.SettleResponse{}
 
@@ -96,15 +128,15 @@ func SettleHandler(c *gin.Context) {
 		v += 27
 	}
 
-	privkeyhex := "56c11c2fee673894e85151857339066cd244d4932f23e660ce8502c867d0927e"
-	signer, _ := crypto.HexToECDSA(privkeyhex)
-
-	h, err := evmbinding.TransferWithAuthorization(client, signer, tokenAddress, from, to, value, validAfter, validBefore, nonce, r, s, v)
+	h, err := evmbinding.TransferWithAuthorization(client, fpk, tokenAddress, from, to, value, validAfter, validBefore, nonce, r, s, v)
 
 	if err != nil {
+		log.Println("error executing settlement", err)
 		reason := fmt.Sprintf("Error parsing ABI: %s", err.Error())
 		response.ErrorReason = &reason
 		c.JSON(http.StatusInternalServerError, response)
+		//c.Abort()
+		return
 	}
 
 	response.Success = true
