@@ -15,14 +15,14 @@ func TestExists(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	log.Println(assets[*s])
+	log.Println(Assets[*s])
 
 	euros := "EUROS"
 	s, err = GetSchema(euros, network)
 	if err != nil {
 		t.Error(err)
 	}
-	log.Println(assets[*s])
+	log.Println(Assets[*s])
 	r := s.Requirement("this", "42", "x")
 	fmt.Println(string(*r.Extra))
 

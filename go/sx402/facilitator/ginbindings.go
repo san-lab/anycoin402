@@ -10,6 +10,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/san-lab/sx402/mockstore/store"
+	"github.com/san-lab/sx402/schemas"
 )
 
 func Start(withStore bool) {
@@ -24,10 +25,7 @@ func Start(withStore bool) {
 	}))
 
 	// Define the endpoint
-	router.GET("/facilitator/*action", func(c *gin.Context) {
-		c.Writer.WriteString("You probably want to use POST method for your action: " + c.Param("action"))
-	})
-
+	router.GET("facilitator/supported", getSupported)
 	withEnvelope := router.Group("/facilitator", RequestLogger(), ParseEnvelope, SetupClient)
 	withEnvelope.POST("/verify", verifyHandler)
 	withEnvelope.POST("/settle", SettleHandler)
@@ -67,4 +65,14 @@ func RequestLogger() gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+func getSupported(c *gin.Context) {
+	supported := []schemas.Scheme{}
+	for scheme := range schemas.Assets {
+		supported = append(supported, scheme)
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"kinds": supported,
+	})
 }

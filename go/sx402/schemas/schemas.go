@@ -45,7 +45,7 @@ var UsdcOnAmoy = Scheme{"exact", evmbinding.Amoy}
 var EurcOnSepolia = Scheme{"EURC", evmbinding.Sepolia}
 var UsdcOnSepolia = Scheme{"USDC", evmbinding.Sepolia}
 
-var assets = map[Scheme]string{
+var Assets = map[Scheme]string{
 	UsdcOnBaseSepolia:  BASE_SEPOLIA_USDC,
 	EurosOnBaseSepolia: BASE_SEPOLIA_EUROS,
 	UsdcOnAmoy:         AMOY_USDC,
@@ -83,7 +83,7 @@ func GetSchema(name, network string) (*Scheme, error) {
 	s := new(Scheme)
 	s.Network = network
 	s.SchemeName = name
-	_, ok := assets[*s]
+	_, ok := Assets[*s]
 	_, ok2 := extras[*s]
 	if ok && ok2 {
 		return s, nil
@@ -95,7 +95,7 @@ func (s *Scheme) Requirement(resource, price, payto string) *types.PaymentRequir
 	return &types.PaymentRequirements{
 		PayTo:             payto,
 		MaxTimeoutSeconds: 120,
-		Asset:             assets[*s],
+		Asset:             Assets[*s],
 		MaxAmountRequired: price,
 		Resource:          resource,
 		Extra:             extras[*s],

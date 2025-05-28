@@ -11,8 +11,9 @@ import (
 
 // TemplateData defines the data passed to the HTML template
 type TemplateData struct {
-	TxHash  string
-	Content template.HTML
+	TxHash   string
+	Explorer string
+	Content  template.HTML
 }
 
 func ResourceHandler(c *gin.Context) {
@@ -39,10 +40,13 @@ func ResourceHandler(c *gin.Context) {
 		return
 	}
 
+	explorer := c.GetString("explorer")
+
 	// Render template
 	data := TemplateData{
-		TxHash:  txHash,
-		Content: template.HTML(Stories[idx-1]),
+		TxHash:   txHash,
+		Explorer: explorer,
+		Content:  template.HTML(Stories[idx-1]),
 	}
 	c.Status(http.StatusOK)
 	tmpl.Execute(c.Writer, data)

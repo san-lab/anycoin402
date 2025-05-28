@@ -27,6 +27,13 @@ var rpcEndpoints = map[string]string{Base_sepolia: "https://sepolia.base.org",
 	Holesky: "https://ethereum-holesky.publicnode.com",
 }
 
+var ExplorerURLs = map[string]string{
+	Base_sepolia: "https://sepolia.basescan.org", // Basescan (Etherscan-style)
+	Sepolia:      "https://sepolia.etherscan.io", // Official Sepolia Etherscan
+	Amoy:         "https://amoy.polygonscan.com", // Polygonscan for Amoy
+	Holesky:      "https://holesky.etherscan.io", // Etherscan for Holesky
+}
+
 var ChainIDs = map[string]*big.Int{
 	"base-sepolia": big.NewInt(84532),
 	"sepolia":      big.NewInt(11155111),

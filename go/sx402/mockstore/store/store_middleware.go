@@ -126,6 +126,8 @@ func X402Middleware(c *gin.Context) {
 
 	if settleResponse.Success {
 		c.Set("settleReponse", settleResponse)
+		explorer := evmbinding.ExplorerURLs[headerPayload.Network]
+		c.Set("explorer", explorer)
 		c.Next()
 	}
 
