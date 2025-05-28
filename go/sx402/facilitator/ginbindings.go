@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/san-lab/sx402/mockstore/store"
 	"github.com/san-lab/sx402/schemas"
+	"github.com/san-lab/sx402/state"
 )
 
 func Start(withStore bool, facilitatorPassword []byte) {
@@ -21,7 +22,7 @@ func Start(withStore bool, facilitatorPassword []byte) {
 	}
 	router := gin.Default()
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:4021"},
+		AllowOrigins:     []string{"*"},
 		AllowMethods:     []string{"GET", "POST", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -31,6 +32,7 @@ func Start(withStore bool, facilitatorPassword []byte) {
 
 	// Define the endpoint
 	router.GET("facilitator/supported", getSupported)
+	router.GET("facilitator/receipt", state.GetReceiptCollector().HandlerReceiptStatus)
 	withEnvelope := router.Group("/facilitator", RequestLogger(), ParseEnvelope, SetupClient)
 	withEnvelope.POST("/verify", verifyHandler)
 	withEnvelope.POST("/settle", SettleHandler)

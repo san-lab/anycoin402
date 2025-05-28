@@ -4,16 +4,22 @@ import (
 	"html/template"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/coinbase/x402/go/pkg/types"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/gin-gonic/gin"
+	"github.com/san-lab/sx402/state"
 )
 
 // TemplateData defines the data passed to the HTML template
 type TemplateData struct {
-	TxHash   string
-	Explorer string
-	Content  template.HTML
+	TxHash      string
+	Explorer    string
+	Content     template.HTML
+	Network     string
+	Status      string
+	Facilitator string
 }
 
 func ResourceHandler(c *gin.Context) {
@@ -44,10 +50,21 @@ func ResourceHandler(c *gin.Context) {
 
 	// Render template
 	data := TemplateData{
-		TxHash:   txHash,
-		Explorer: explorer,
-		Content:  template.HTML(Stories[idx-1]),
+		TxHash:      txHash,
+		Explorer:    explorer,
+		Content:     template.HTML(Stories[idx-1]),
+		Network:     c.GetString("network"),
+		Facilitator: c.GetString("facilitator") + "/receipt",
+		Status:      "Unknown",
 	}
+
+	time.Sleep(time.Second)
+	_, status := state.GetReceipt(common.HexToHash(txHash), c.GetString("network"))
+
+	if status {
+		data.Status = "Settled"
+	}
+
 	c.Status(http.StatusOK)
 	tmpl.Execute(c.Writer, data)
 }

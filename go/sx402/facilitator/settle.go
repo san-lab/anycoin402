@@ -18,6 +18,7 @@ import (
 	kms "github.com/proveniencenft/kmsclitool/common"
 	"github.com/san-lab/sx402/all712"
 	"github.com/san-lab/sx402/evmbinding"
+	"github.com/san-lab/sx402/state"
 )
 
 var keyfile_name = "0xfAc178B1C359D41e9162A1A6385380de96809048.json"
@@ -138,6 +139,8 @@ func SettleHandler(c *gin.Context) {
 		//c.Abort()
 		return
 	}
+
+	state.GetReceiptCollector().Submit(*h, payload.PaymentPayload.Network)
 
 	response.Success = true
 	response.Transaction = h.Hex()

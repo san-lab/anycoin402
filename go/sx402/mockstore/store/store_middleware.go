@@ -140,8 +140,10 @@ func X402Middleware(c *gin.Context) {
 
 	if settleResponse.Success {
 		c.Set("settleReponse", settleResponse)
+		c.Set("network", headerPayload.Network)
 		explorer := evmbinding.ExplorerURLs[headerPayload.Network]
 		c.Set("explorer", explorer)
+		c.Set("facilitator", facilitatorURI)
 		c.Next()
 	} else {
 

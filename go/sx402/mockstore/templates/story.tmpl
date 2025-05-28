@@ -21,22 +21,41 @@
     .back-button:hover {
       background-color: #0056b3;
     }
+    .tx-details {
+      margin-top: 20px;
+    }
+    .tx-details code a {
+      color: #007BFF;
+      text-decoration: none;
+    }
+    .tx-details code a:hover {
+      text-decoration: underline;
+    }
+    .receipt-link {
+      margin-top: 10px;
+      display: block;
+      font-size: 16px;
+    }
   </style>
 </head>
 <body>
   <h1>Thank you for your donation!</h1>
-  <p>
-    Transaction Hash:
-    <code>
-      <a href="{{.Explorer}}/tx/{{.TxHash}}" target="_blank" rel="noopener noreferrer">
-        {{.TxHash}}
-      </a>
-    </code>
-  </p>
+  <div class="tx-details">
+    <p>
+      Transaction Hash:
+      <code>
+        <a href="{{.Explorer}}/tx/{{.TxHash}}" target="_blank" rel="noopener noreferrer">
+          {{.TxHash}}
+        </a>
+      </code>
+    </p>
+    Status: <strong>{{.Status}}</strong><a class="receipt-link" href="{{.Facilitator}}?tx={{.TxHash}}&network={{.Network}}" target="_blank" rel="noopener noreferrer">
+      📄 Check On-Chain Receipt
+    </a>
+  </div>
+
   <div class="story">{{.Content}}</div>
 
-  <!-- Back to Landing Page Button -->
   <a href="." class="back-button">← Back to Landing Page</a>
-
 </body>
 </html>
