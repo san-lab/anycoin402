@@ -2,6 +2,7 @@ package facilitator
 
 import (
 	"bytes"
+	"html/template"
 	"io"
 	"log"
 	"net/http"
@@ -11,8 +12,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/san-lab/sx402/mockstore/store"
 	"github.com/san-lab/sx402/schemas"
-	"github.com/san-lab/sx402/state"
 )
+
+var Template = template.New("")
 
 func Start(withStore bool, facilitatorPassword []byte) {
 	err := InitKeys(facilitatorPassword)
@@ -21,18 +23,22 @@ func Start(withStore bool, facilitatorPassword []byte) {
 		return
 	}
 	router := gin.Default()
+	template.Must(Template.ParseGlob("templates/*html"))
+	router.SetHTMLTemplate(Template)
+	//router.LoadHTMLGlob("templates/*html")
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"*"},
 		AllowMethods:     []string{"GET", "POST", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept"},
 		ExposeHeaders:    []string{"Content-Length"},
-		AllowCredentials: true,
+		AllowCredentials: false,
 		MaxAge:           12 * time.Hour,
 	}))
 
 	// Define the endpoint
 	router.GET("facilitator/supported", getSupported)
-	router.GET("facilitator/receipt", state.GetReceiptCollector().HandlerReceiptStatus)
+	router.GET("facilitator/receiptraw", HandlerReceiptStatus)
+	router.GET("facilitator/receipt", prettyReceiptPage)
 	withEnvelope := router.Group("/facilitator", RequestLogger(), ParseEnvelope, SetupClient)
 	withEnvelope.POST("/verify", verifyHandler)
 	withEnvelope.POST("/settle", SettleHandler)
@@ -47,7 +53,7 @@ func Start(withStore bool, facilitatorPassword []byte) {
 	})
 
 	if withStore {
-		store.Start(router)
+		store.Start(router, Template)
 	}
 	// Start the server
 	router.Run(":3010")
