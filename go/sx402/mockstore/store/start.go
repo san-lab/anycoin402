@@ -1,6 +1,7 @@
 package store
 
 import (
+	"html/template"
 	"log"
 	"net/http"
 
@@ -10,9 +11,11 @@ import (
 
 var StorePrefix = "mockstore"
 
-func Start(router *gin.Engine) {
+func Start(router *gin.Engine, tmpl *template.Template) {
 	log.Println("starting the demo store")
-	router.LoadHTMLGlob(StorePrefix + "/templates/*html")
+
+	template.Must(tmpl.ParseGlob(StorePrefix + "/templates/*html"))
+	//router.SetHTMLTemplate(tmpl)
 	store := router.Group(StorePrefix)
 	// Index page
 

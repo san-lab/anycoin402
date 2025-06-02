@@ -3,14 +3,12 @@ package state
 import (
 	"context"
 	"log"
-	"net/http"
 	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/gin-gonic/gin"
 	"github.com/san-lab/sx402/evmbinding"
 )
 
@@ -19,9 +17,10 @@ type OmniHash struct {
 	Network string
 }
 
-type pendingReceipt struct {
-	submittedAt time.Time
-	receipt     *types.Receipt
+type PendingReceipt struct {
+	SubmittedAt  time.Time
+	TimeToSettle time.Duration
+	Receipt      *types.Receipt
 }
 
 type ReceiptTracker struct {
@@ -43,24 +42,24 @@ func NewReceiptTracker() *ReceiptTracker {
 // Submit a tx hash to begin tracking
 func (rt *ReceiptTracker) Submit(hash common.Hash, network string) {
 	key := OmniHash{Hash: hash, Network: network}
-	rt.receipts.Store(key, &pendingReceipt{
-		submittedAt: time.Now(),
-		receipt:     nil,
+	rt.receipts.Store(key, &PendingReceipt{
+		SubmittedAt: time.Now(),
+		Receipt:     nil,
 	})
 	log.Printf("📩 Submitted tx %s on %s", hash.Hex(), network)
 }
 
 // Get retrieves a receipt if available
-func (rt *ReceiptTracker) Get(hash common.Hash, network string) (*types.Receipt, bool) {
+func (rt *ReceiptTracker) Get(hash common.Hash, network string) (*PendingReceipt, bool) {
 	val, ok := rt.receipts.Load(OmniHash{Hash: hash, Network: network})
 	if !ok {
 		return nil, false
 	}
-	pr := val.(*pendingReceipt)
-	if pr.receipt == nil {
+	pr := val.(*PendingReceipt)
+	if pr.Receipt == nil {
 		return nil, false
 	}
-	return pr.receipt, true
+	return pr, true
 }
 
 func (rt *ReceiptTracker) pollLoop() {
@@ -72,15 +71,15 @@ func (rt *ReceiptTracker) pollLoop() {
 
 		rt.receipts.Range(func(key, value any) bool {
 			omni := key.(OmniHash)
-			pr := value.(*pendingReceipt)
+			pr := value.(*PendingReceipt)
 
 			// Already received
-			if pr.receipt != nil {
+			if pr.Receipt != nil {
 				return true
 			}
 
 			// Timeout expired
-			if now.Sub(pr.submittedAt) > receiptTimeout {
+			if now.Sub(pr.SubmittedAt) > receiptTimeout {
 				log.Printf("⏱️ Timeout: %s (%s) exceeded %v, dropping", omni.Hash.Hex(), omni.Network, receiptTimeout)
 				rt.receipts.Delete(omni)
 				return true
@@ -99,50 +98,21 @@ func (rt *ReceiptTracker) pollLoop() {
 				return true
 			}
 
-			pr.receipt = receipt
+			// Fetch block to get timestamp
+			block, err := client.HeaderByNumber(context.Background(), receipt.BlockNumber)
+			if err == nil {
+
+				settleTime := time.Unix(int64(block.Time), 0)
+				pr.TimeToSettle = settleTime.Sub(pr.SubmittedAt)
+			} else {
+				log.Println("Failed to get block from ", omni.Network)
+				pr.TimeToSettle = time.Since(pr.SubmittedAt)
+			}
+
+			pr.Receipt = receipt
 			rt.receipts.Store(omni, pr)
 			log.Printf("✅ Receipt for %s (%s) stored", omni.Hash.Hex(), omni.Network)
 			return true
 		})
 	}
-}
-
-func (rt *ReceiptTracker) HandlerReceiptStatus(c *gin.Context) {
-	network := c.Query("network")
-	tx := c.Query("tx")
-
-	if network == "" || tx == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Missing required query params: network, tx",
-		})
-		return
-	}
-
-	hash := common.HexToHash(tx)
-	key := OmniHash{Hash: hash, Network: network}
-
-	val, ok := rt.receipts.Load(key)
-	if !ok {
-		c.JSON(http.StatusOK, gin.H{
-			"status": "not_found",
-		})
-		return
-	}
-
-	pr := val.(*pendingReceipt)
-	await := time.Since(pr.submittedAt).Seconds()
-
-	if pr.receipt == nil {
-		c.JSON(http.StatusOK, gin.H{
-			"status":     "pending",
-			"await_time": await,
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"status":     "found",
-		"await_time": await,
-		"receipt":    pr.receipt, // Gin uses JSON tags from the receipt struct
-	})
 }

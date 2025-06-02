@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Transaction Details</title>
+  <style>
+    body {
+      background-color: #f5f7fa;
+      font-family: "Courier New", Courier, monospace;
+      margin: 40px;
+      color: #333;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background-color: #ffffff;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
+      padding: 20px;
+    }
+    h2 {
+      font-family: Arial, sans-serif;
+      margin-bottom: 20px;
+      color: #2c3e50;
+    }
+    pre {
+      background-color: #f0f0f0;
+      padding: 15px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 14px;
+    }
+    .error {
+      color: #c0392b;
+      font-weight: bold;
+    }
+    .label {
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Transaction Info</h2>
+    <pre>
+Tx hash:             {{.Tx}}
+Blockchain network:  {{.Network}}
+{{with .Error}}<span class="error">Error: {{.}}</span>
+{{end}}Status:              {{.Status}}
+Time to settle (sec): {{.SettleTime}}
+
+Receipt:
+{{.Receipt}}
+    </pre>
+  </div>
+</body>
+</html>

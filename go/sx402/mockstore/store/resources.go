@@ -59,7 +59,7 @@ func ResourceHandler(c *gin.Context) {
 	}
 
 	time.Sleep(time.Second)
-	_, status := state.GetReceipt(common.HexToHash(txHash), c.GetString("network"))
+	_, status := state.GetPendingReceipt(common.HexToHash(txHash), c.GetString("network"))
 
 	if status {
 		data.Status = "Settled"
