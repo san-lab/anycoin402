@@ -180,10 +180,9 @@ func TransferWithAuthorization(
 
 	facilAddress := crypto.PubkeyToAddress(signer.PublicKey)
 
-	// Get nonce for transaction
-	fromNonce, err := client.PendingNonceAt(context.Background(), facilAddress)
+	fromNonce, err := getNonce(context.Background(), client, facilAddress)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	gasPrice, err := client.SuggestGasPrice(context.Background())
