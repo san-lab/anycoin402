@@ -2,6 +2,7 @@ package all712
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -120,6 +121,13 @@ func mustNewType(t string) abi.Type {
 
 type Envelope struct {
 	X402Version         int                        `json:"x402Version"`
-	PaymentPayload      *types.PaymentPayload      `json:"paymentPayload"`
+	PaymentPayload      *PaymentPayload            `json:"paymentPayload"`
 	PaymentRequirements *types.PaymentRequirements `json:"paymentRequirements"`
+}
+
+type PaymentPayload struct {
+	X402Version int             `json:"x402Version"`
+	Scheme      string          `json:"scheme"`
+	Network     string          `json:"network"`
+	Payload     json.RawMessage `json:"payload"`
 }

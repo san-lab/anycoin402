@@ -119,8 +119,14 @@ func X402Middleware(c *gin.Context) {
 		return
 	}
 
+	headerPayloadBytes, _ := json.Marshal(headerPayload.Payload)
 	env.X402Version = 1
-	env.PaymentPayload = headerPayload
+	env.PaymentPayload = &all712.PaymentPayload{
+		X402Version: headerPayload.X402Version,
+		Scheme:      headerPayload.Scheme,
+		Network:     headerPayload.Network,
+		Payload:     headerPayloadBytes,
+	}
 
 	if err := validatePayment(env); err != nil {
 		c.JSON(http.StatusForbidden, gin.H{

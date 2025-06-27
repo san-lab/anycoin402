@@ -25,20 +25,33 @@ func verifyHandler(c *gin.Context) {
 	enlp, exists := c.Get("envelope")
 	if !exists {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Envelope not found"})
+		c.Abort()
 		return
 	}
-	payload := enlp.(all712.Envelope)
+	envelope := enlp.(all712.Envelope)
 
+	switch envelope.PaymentPayload.Scheme {
+	case "exact":
+		VerifyExactEnvelope(c, &envelope)
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported Scheme " + envelope.PaymentPayload.Scheme})
+		c.Abort()
+		return
+	}
+}
+
+func VerifyExactEnvelope(c *gin.Context, envelope *all712.Envelope) {
 	clnt, exists := c.Get("client")
 	if !exists {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Envelope not found"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Client not found"})
+		c.Abort()
 		return
 	}
 	client := clnt.(*ethclient.Client)
 
 	response := types.VerifyResponse{}
 
-	amount, _, payer, asset, nonce, err := FormallyVerifyEnvelope(&payload)
+	amount, _, payer, asset, nonce, err := FormallyVerifyExactEnvelope(envelope)
 
 	if err != nil {
 		reason := err.Error()
@@ -83,11 +96,18 @@ func verifyHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-func FormallyVerifyEnvelope(envelope *all712.Envelope) (amount, chainID *big.Int, payer, asset common.Address, nonce [32]byte, err error) {
+func FormallyVerifyExactEnvelope(envelope *all712.Envelope) (amount, chainID *big.Int, payer, asset common.Address, nonce [32]byte, err error) {
 	var ok bool
-	amount, ok = new(big.Int).SetString(envelope.PaymentPayload.Payload.Authorization.Value, 10)
+	exactPayload := new(types.ExactEvmPayload)
+	err = json.Unmarshal(envelope.PaymentPayload.Payload, exactPayload)
+	if err != nil {
+		err = fmt.Errorf("error unmarshalling exact payload: %w", err)
+		return
+	}
+
+	amount, ok = new(big.Int).SetString(exactPayload.Authorization.Value, 10)
 	if !ok {
-		err = fmt.Errorf("Wrong value: %s", envelope.PaymentPayload.Payload.Authorization.Value)
+		err = fmt.Errorf("Wrong value: %s", exactPayload.Authorization.Value)
 		return
 	}
 
@@ -101,9 +121,9 @@ func FormallyVerifyEnvelope(envelope *all712.Envelope) (amount, chainID *big.Int
 		return
 	}
 
-	after, ok := new(big.Int).SetString(envelope.PaymentPayload.Payload.Authorization.ValidAfter, 10)
+	after, ok := new(big.Int).SetString(exactPayload.Authorization.ValidAfter, 10)
 	if !ok {
-		err = fmt.Errorf("Wrong VelidAfter parameter: %s", envelope.PaymentPayload.Payload.Authorization.ValidAfter)
+		err = fmt.Errorf("Wrong VelidAfter parameter: %s", exactPayload.Authorization.ValidAfter)
 		return
 	}
 
@@ -112,9 +132,9 @@ func FormallyVerifyEnvelope(envelope *all712.Envelope) (amount, chainID *big.Int
 		return
 	}
 
-	before, ok := new(big.Int).SetString(envelope.PaymentPayload.Payload.Authorization.ValidBefore, 10)
+	before, ok := new(big.Int).SetString(exactPayload.Authorization.ValidBefore, 10)
 	if !ok {
-		err = fmt.Errorf("Wrong VelidBefore parameter: %s", envelope.PaymentPayload.Payload.Authorization.ValidBefore)
+		err = fmt.Errorf("Wrong VelidBefore parameter: %s", exactPayload.Authorization.ValidBefore)
 		return
 	}
 	if time.Now().Unix() > before.Int64() {
@@ -138,8 +158,8 @@ func FormallyVerifyEnvelope(envelope *all712.Envelope) (amount, chainID *big.Int
 	}
 
 	ok, payer, err = all712.VerifyTransferWithAuthorizationSignature(
-		envelope.PaymentPayload.Payload.Signature,
-		*envelope.PaymentPayload.Payload.Authorization,
+		exactPayload.Signature,
+		*exactPayload.Authorization,
 		einfo["name"], einfo["version"],
 		chainID, common.HexToAddress(envelope.PaymentRequirements.Asset))
 
@@ -147,7 +167,7 @@ func FormallyVerifyEnvelope(envelope *all712.Envelope) (amount, chainID *big.Int
 		return
 	}
 	var noncesl []byte
-	noncesl, err = hex.DecodeString(strings.TrimPrefix(envelope.PaymentPayload.Payload.Authorization.Nonce, "0x"))
+	noncesl, err = hex.DecodeString(strings.TrimPrefix(exactPayload.Authorization.Nonce, "0x"))
 	copy(nonce[:], noncesl)
 
 	return

@@ -3,6 +3,7 @@ package facilitator
 import (
 	"crypto/ecdsa"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"net/http"
@@ -51,14 +52,36 @@ func SettleHandler(c *gin.Context) {
 		return
 	}
 
-	response := types.SettleResponse{}
-
 	enlp, exists := c.Get("envelope")
 	if !exists {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Envelope not found"})
 		return
 	}
-	payload := enlp.(all712.Envelope)
+	envelope := enlp.(all712.Envelope)
+
+	switch envelope.PaymentPayload.Scheme {
+	case "exact":
+		SettleExactScheme(c, &envelope)
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported Scheme " + envelope.PaymentPayload.Scheme})
+		c.Abort()
+		return
+	}
+}
+
+func SettleExactScheme(c *gin.Context, envelope *all712.Envelope) {
+
+	response := types.SettleResponse{}
+
+	exactPayload := new(types.ExactEvmPayload)
+	err := json.Unmarshal(envelope.PaymentPayload.Payload, exactPayload)
+	if err != nil {
+		response.Success = false
+		reason := fmt.Sprintf("when setting: rror unmarshalling the exact payload (%s)", err)
+		response.ErrorReason = &reason
+		c.JSON(http.StatusBadRequest, response)
+		return
+	}
 
 	clnt, exists := c.Get("client")
 	if !exists {
@@ -68,7 +91,7 @@ func SettleHandler(c *gin.Context) {
 
 	client := clnt.(*ethclient.Client)
 
-	response.Network = payload.PaymentPayload.Network
+	response.Network = envelope.PaymentPayload.Network
 
 	var from, to, tokenAddress common.Address
 	var value, validAfter, validBefore *big.Int
@@ -76,12 +99,12 @@ func SettleHandler(c *gin.Context) {
 	var nonce, r, s [32]byte
 	var v byte
 
-	from = common.HexToAddress(payload.PaymentPayload.Payload.Authorization.From)
-	to = common.HexToAddress(payload.PaymentPayload.Payload.Authorization.To)
-	tokenAddress = common.HexToAddress(payload.PaymentRequirements.Asset)
+	from = common.HexToAddress(exactPayload.Authorization.From)
+	to = common.HexToAddress(exactPayload.Authorization.To)
+	tokenAddress = common.HexToAddress(envelope.PaymentRequirements.Asset)
 
 	// Convert value
-	value, ok := new(big.Int).SetString(payload.PaymentPayload.Payload.Authorization.Value, 10)
+	value, ok := new(big.Int).SetString(exactPayload.Authorization.Value, 10)
 	if !ok {
 		reason := "error Invalid value format"
 		response.ErrorReason = &reason
@@ -90,14 +113,14 @@ func SettleHandler(c *gin.Context) {
 	}
 
 	// Convert validAfter / validBefore
-	validAfter, ok = new(big.Int).SetString(payload.PaymentPayload.Payload.Authorization.ValidAfter, 10)
+	validAfter, ok = new(big.Int).SetString(exactPayload.Authorization.ValidAfter, 10)
 	if !ok {
 		reason := "error Invalid ValidAfter format"
 		response.ErrorReason = &reason
 		c.JSON(http.StatusBadRequest, response)
 	}
 
-	validBefore, ok = new(big.Int).SetString(payload.PaymentPayload.Payload.Authorization.ValidBefore, 10)
+	validBefore, ok = new(big.Int).SetString(exactPayload.Authorization.ValidBefore, 10)
 	if !ok {
 		reason := "error Invalid ValidBefore format"
 		response.ErrorReason = &reason
@@ -105,7 +128,7 @@ func SettleHandler(c *gin.Context) {
 	}
 
 	// Convert nonce (hex string to [32]byte)
-	nonceBytes, err := hex.DecodeString(strings.TrimPrefix(payload.PaymentPayload.Payload.Authorization.Nonce, "0x"))
+	nonceBytes, err := hex.DecodeString(strings.TrimPrefix(exactPayload.Authorization.Nonce, "0x"))
 	if err != nil || len(nonceBytes) != 32 {
 		reason := "error: Invalid nonce"
 		response.ErrorReason = &reason
@@ -115,7 +138,7 @@ func SettleHandler(c *gin.Context) {
 	copy(nonce[:], nonceBytes)
 
 	// Convert r, s (hex strings to []byte)
-	sig, err := hex.DecodeString(strings.TrimPrefix(payload.PaymentPayload.Payload.Signature, "0x"))
+	sig, err := hex.DecodeString(strings.TrimPrefix(exactPayload.Signature, "0x"))
 	if err != nil || len(r) != 32 {
 		reason := "error: Invalid signature format"
 		response.ErrorReason = &reason
@@ -140,7 +163,7 @@ func SettleHandler(c *gin.Context) {
 		return
 	}
 
-	state.GetReceiptCollector().Submit(*h, payload.PaymentPayload.Network)
+	state.GetReceiptCollector().Submit(*h, envelope.PaymentPayload.Network)
 
 	response.Success = true
 	response.Transaction = h.Hex()

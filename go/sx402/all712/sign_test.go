@@ -84,7 +84,8 @@ func TestAddSignature(t *testing.T) {
 	}
 
 	envlp := new(Envelope)
-	envlp.PaymentPayload = ppld
+	ppldbytes, _ := json.Marshal(ppld.Payload)
+	envlp.PaymentPayload = &PaymentPayload{ppld.X402Version, ppld.Scheme, ppld.Network, ppldbytes}
 	envlp.PaymentRequirements = preq
 	envlp.X402Version = 1
 
