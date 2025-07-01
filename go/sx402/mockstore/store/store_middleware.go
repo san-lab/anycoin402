@@ -12,7 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/san-lab/sx402/all712"
 	"github.com/san-lab/sx402/evmbinding"
-	"github.com/san-lab/sx402/schemas"
+	"github.com/san-lab/sx402/schemes"
 )
 
 const X_PAYMENT_HEADER = "X-Payment"
@@ -47,7 +47,7 @@ func X402Middleware(c *gin.Context) {
 	accepts := []*types.PaymentRequirements{}
 
 	network := evmbinding.Base_sepolia
-	usdcs, err := schemas.GetSchema("exact", network)
+	usdcs, err := schemes.GetScheme(schemes.Scheme_Exact_USDC, network)
 	if err != nil {
 		log.Println(err)
 
@@ -55,7 +55,7 @@ func X402Middleware(c *gin.Context) {
 
 		accepts = append(accepts, usdcs.Requirement(resourceURI, usdprice, store_wallet))
 	}
-	euros, err := schemas.GetSchema("EUROS", network)
+	euros, err := schemes.GetScheme(schemes.Scheme_Exact_EUROS, network)
 	if err != nil {
 		log.Println(err)
 
@@ -63,7 +63,7 @@ func X402Middleware(c *gin.Context) {
 		accepts = append(accepts, euros.Requirement(resourceURI, price, store_wallet))
 	}
 
-	amoyusdc, err := schemas.GetSchema("exact", evmbinding.Amoy)
+	amoyusdc, err := schemes.GetScheme(schemes.Scheme_Exact_USDC, evmbinding.Amoy)
 	if err != nil {
 		log.Println(err)
 
@@ -71,7 +71,7 @@ func X402Middleware(c *gin.Context) {
 		accepts = append(accepts, amoyusdc.Requirement(resourceURI, usdprice, store_wallet))
 	}
 
-	sepoliaeurc, err := schemas.GetSchema("EURC", evmbinding.Sepolia)
+	sepoliaeurc, err := schemes.GetScheme(schemes.Scheme_Exact_EURC, evmbinding.Sepolia)
 	if err != nil {
 		log.Println(err)
 
@@ -79,12 +79,20 @@ func X402Middleware(c *gin.Context) {
 		accepts = append(accepts, sepoliaeurc.Requirement(resourceURI, price, store_wallet))
 	}
 
-	zksyncussdc, err := schemas.GetSchema("exact", evmbinding.ZkSync_sepolia)
+	zksyncussdc, err := schemes.GetScheme(schemes.Scheme_Exact_USDC, evmbinding.ZkSync_sepolia)
 	if err != nil {
 		log.Println(err)
 
 	} else {
 		accepts = append(accepts, zksyncussdc.Requirement(resourceURI, usdprice, store_wallet))
+	}
+
+	permitUsdcBaseSepolia, err := schemes.GetScheme(schemes.Scheme_Permit_USDC, evmbinding.Base_sepolia)
+	if err != nil {
+		log.Println(err)
+
+	} else {
+		accepts = append(accepts, permitUsdcBaseSepolia.Requirement(resourceURI, usdprice, store_wallet))
 	}
 
 	if paymentHeader == "" {

@@ -106,6 +106,46 @@
   const tokenName = schema.extra.name;
   const tokenVersion = schema.extra?.version || "2";
 
+ if (schema.scheme.startsWith("permit")) {
+  const nonce = await fetchPermitNonce(schema.network, schema.asset, from);
+const deadline = Math.floor(Date.now() / 1000) + 3600;
+
+const domain = {
+  name: tokenName,                // e.g. "USDC"
+  version: tokenVersion,         // e.g. "2"
+  chainId: expectedChainId,      // e.g. 84532
+  verifyingContract: tokenAddress
+};
+
+const message = {
+  owner: from,
+  spender: schema.extra.facilitator,
+  value,
+  deadline
+};
+
+const signature = await signPermitAuthorization({
+  owner: from,
+  spender: schema.extra.facilitator,
+  value,
+  nonce,
+  deadline
+}, tokenAddress, tokenName, tokenVersion, expectedChainId);
+
+const xPaymentHeader = buildPermitXPaymentHeader({
+  schema,
+  domain,
+  message,
+  nonce,
+  signature
+});
+
+console.log("X-Payment Header (Permit):", JSON.stringify(xPaymentHeader));
+return;
+}
+
+
+
   const message = { from, to, value, validAfter, validBefore, nonce };
 
   const signature = await signTransferAuthorization(message, tokenAddress, tokenName, tokenVersion, chainId);
@@ -188,7 +228,7 @@
               const network = schema.network;
               const option = document.createElement('option');
               option.value = index;
-              option.text = `Pay ${amount / 1e6} ${token} on ${network}`;
+              option.text = `Pay ${amount / 1e6} ${token} on ${network} (${schema.scheme})`;
               select.appendChild(option);
             });
 
@@ -303,6 +343,107 @@ async function checkWalletConnection() {
 window.addEventListener('load', () => {
   checkWalletConnection();
 });
+
+
+async function signPermitAuthorization(authorization, tokenAddress, tokenName = "MyToken", tokenVersion = "1", chainId) {
+  const { owner, spender, value, nonce, deadline } = authorization;
+
+  console.log("Permit signature request", authorization, tokenAddress, tokenName, tokenVersion, chainId);
+
+  const domain = {
+    name: tokenName,
+    version: tokenVersion,
+    chainId,
+    verifyingContract: tokenAddress
+  };
+
+  const types = {
+    Permit: [
+      { name: "owner", type: "address" },
+      { name: "spender", type: "address" },
+      { name: "value", type: "uint256" },
+      { name: "nonce", type: "uint256" },
+      { name: "deadline", type: "uint256" }
+    ]
+  };
+
+  const message = {
+    owner,
+    spender,
+    value,
+    nonce,
+    deadline
+  };
+
+  const typesJson = JSON.stringify({
+    types: {
+      EIP712Domain: [
+        { name: "name", type: "string" },
+        { name: "version", type: "string" },
+        { name: "chainId", type: "uint256" },
+        { name: "verifyingContract", type: "address" }
+      ],
+      ...types
+    },
+    domain,
+    primaryType: "Permit",
+    message
+  });
+
+  const signature = await ethereum.request({
+    method: 'eth_signTypedData_v4',
+    params: [owner, typesJson]
+  });
+
+  return signature;
+}
+
+async function fetchPermitNonce(network, asset, owner) {
+  try {
+    const url = new URL('permitnonce', window.location.origin + window.location.pathname);
+
+    url.searchParams.set('network', network);
+    url.searchParams.set('asset', asset);
+    url.searchParams.set('owner', owner);
+
+    const response = await fetch(url.toString());
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Failed to fetch permit nonce:', errorData.error || response.statusText);
+      return null;
+    }
+
+    const data = await response.json();
+    console.log('Permit nonce:', data.nonce);
+    return data.nonce;
+  } catch (err) {
+    console.error('Error fetching permit nonce:', err);
+    return null;
+  }
+}
+
+function buildPermitXPaymentHeader({
+  schema,
+  domain,
+  message,
+  nonce,
+  signature
+}) {
+  return {
+    x402Version: 1,
+    scheme: schema.scheme,
+    network: schema.network,
+    payload: {
+      domain,
+      message,
+      nonce,
+      signature
+    }
+  };
+}
+
+
 
 
   </script>

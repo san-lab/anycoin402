@@ -19,6 +19,7 @@ import (
 	kms "github.com/proveniencenft/kmsclitool/common"
 	"github.com/san-lab/sx402/all712"
 	"github.com/san-lab/sx402/evmbinding"
+	"github.com/san-lab/sx402/schemes"
 	"github.com/san-lab/sx402/state"
 )
 
@@ -39,10 +40,11 @@ func InitKeys(password []byte) error {
 		return err
 	}
 	fmt.Println(crypto.PubkeyToAddress(fpk.PublicKey))
-
+	keyfile = kf
 	return nil
 }
 
+var keyfile *kms.Keyfile
 var fpk *ecdsa.PrivateKey
 
 func SettleHandler(c *gin.Context) {
@@ -60,7 +62,7 @@ func SettleHandler(c *gin.Context) {
 	envelope := enlp.(all712.Envelope)
 
 	switch envelope.PaymentPayload.Scheme {
-	case "exact":
+	case schemes.Scheme_Exact_EURC, schemes.Scheme_Exact_USDC, schemes.Scheme_Exact_EUROS:
 		SettleExactScheme(c, &envelope)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported Scheme " + envelope.PaymentPayload.Scheme})

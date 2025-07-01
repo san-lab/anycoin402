@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"strings"
 	"time"
@@ -56,7 +57,7 @@ func SignERC3009Authorization(
 	var nonce [32]byte
 	copy(nonce[:], snonce)
 
-	digest, err := EIP721Hash(from, to, tokenAddress, value, validAfter, validBefore, chainID, nonce, tokenName, tokenVersion)
+	digest, err := EIP712TransferHash(from, to, tokenAddress, value, validAfter, validBefore, chainID, nonce, tokenName, tokenVersion)
 
 	// --- Sign ---
 	signature, err := crypto.Sign(digest, privateKey)
@@ -108,4 +109,129 @@ func AddAuthorizationSignature(paymentReqs *types.PaymentRequirements, from_key 
 	ppld.Payload.Signature = hex.EncodeToString(bts)
 
 	return ppld, nil
+}
+
+func SignEIP2612Permit(permit *Permit, privateKey *ecdsa.PrivateKey) ([]byte, error) {
+
+	digest, err := permit.Digest()
+	if err != nil {
+		return digest, err
+	}
+	// --- Sign ---
+	signature, err := crypto.Sign(digest, privateKey)
+
+	signature[64] += 27
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign digest: %v", err)
+	}
+
+	return signature, nil
+}
+
+func VerifyPermitSignature(permit *Permit) (recovered common.Address, err error) {
+	if len(permit.Signature) != 65 {
+		err = fmt.Errorf("wrong signature length: %v", len(permit.Signature))
+		return
+	}
+	digest, err := permit.Digest()
+	if err != nil {
+		err = fmt.Errorf("errr hashing Parmit: %w", err)
+		return
+	}
+	sig := make([]byte, 65, 65)
+	copy(sig, permit.Signature)
+	if sig[64] >= 27 {
+		sig[64] -= 27
+	}
+
+	pub, err := crypto.SigToPub(digest, sig)
+	if err != nil {
+		err = fmt.Errorf("error recovering address: %w", err)
+		return
+	}
+
+	recovered = crypto.PubkeyToAddress(*pub)
+	if recovered.Cmp(permit.Message.Owner) != 0 {
+		err = fmt.Errorf("recoverd key does not match the Owner")
+	}
+	log.Printf("permit signature: 0x%x", permit.Signature)
+	return
+}
+
+func VerifyTransferWithAuthorizationSignature(
+	signatureHex string,
+	auth types.ExactEvmPayloadAuthorization,
+	name string,
+	version string,
+	chainID *big.Int,
+	tokenAddress common.Address,
+) (common.Address, error) {
+
+	// Hash type: keccak256("TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)")
+
+	value, ok := new(big.Int).SetString(auth.Value, 10)
+	if !ok {
+		return common.Address{}, errors.New("Invalid Value")
+	}
+	after, ok := new(big.Int).SetString(auth.ValidAfter, 10)
+	if !ok {
+		return common.Address{}, errors.New("Invalid After")
+	}
+	before, ok := new(big.Int).SetString(auth.ValidBefore, 10)
+	if !ok {
+		return common.Address{}, errors.New("Invalid Before")
+	}
+
+	nonce_s, err := hex.DecodeString(strings.TrimPrefix(auth.Nonce, "0x"))
+	if err != nil {
+		return common.Address{}, errors.New("Invalid nonce")
+	}
+	var nonce_h [32]byte
+	copy(nonce_h[:], nonce_s)
+
+	digest, err := EIP712TransferHash(
+		common.HexToAddress(auth.From),
+		common.HexToAddress(auth.To),
+		tokenAddress,
+		value,
+		after,
+		before,
+		chainID,
+		nonce_h,
+		name,
+		version,
+	)
+	if err != nil {
+		return common.Address{}, err
+	}
+
+	// Decode signature
+	sig, err := hex.DecodeString(strings.TrimPrefix(signatureHex, "0x"))
+	if err != nil {
+		return common.Address{}, err
+	}
+	if len(sig) != 65 {
+		return common.Address{}, fmt.Errorf("invalid signature length")
+	}
+
+	// Adjust V if needed
+	if sig[64] >= 27 {
+		sig[64] -= 27
+	}
+
+	pubKey, err := crypto.SigToPub(digest, sig)
+	if err != nil {
+		return common.Address{}, err
+	}
+	recoveredAddr := crypto.PubkeyToAddress(*pubKey)
+
+	// Compare recovered address with `from`
+	isValid := strings.Compare(strings.ToLower(recoveredAddr.Hex()), strings.ToLower(auth.From)) == 0
+	log.Println("Recovered:", recoveredAddr)
+	log.Println("From:", auth.From)
+	if !isValid {
+		return recoveredAddr, fmt.Errorf("Recovered address differ: %s expected %s", recoveredAddr, auth.From)
+	}
+
+	return recoveredAddr, nil
 }

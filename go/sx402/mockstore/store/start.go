@@ -35,4 +35,6 @@ func Start(router *gin.Engine, tmpl *template.Template) {
 	// Protected resources
 	store.GET("/resources", X402Middleware, ResourceHandler)
 
+	store.GET("/permitnonce", permitNonceProxyHandler)
+
 }

@@ -11,7 +11,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/san-lab/sx402/mockstore/store"
-	"github.com/san-lab/sx402/schemas"
+	"github.com/san-lab/sx402/schemes"
 )
 
 var Template = template.New("")
@@ -39,9 +39,11 @@ func Start(withStore bool, facilitatorPassword []byte) {
 	router.GET("facilitator/supported", getSupported)
 	router.GET("facilitator/receiptraw", HandlerReceiptStatus)
 	router.GET("facilitator/receipt", prettyReceiptPage)
+	router.GET("facilitator/permitnonce", permitNonceHandler)
 	withEnvelope := router.Group("/facilitator", RequestLogger(), ParseEnvelope, SetupClient)
 	withEnvelope.POST("/verify", verifyHandler)
 	withEnvelope.POST("/settle", SettleHandler)
+
 	router.GET("/", func(c *gin.Context) {
 		c.Writer.WriteString("Hello there!")
 	})
@@ -81,8 +83,8 @@ func RequestLogger() gin.HandlerFunc {
 }
 
 func getSupported(c *gin.Context) {
-	supported := []schemas.Scheme{}
-	for scheme := range schemas.Assets {
+	supported := []schemes.Scheme{}
+	for scheme := range schemes.Assets {
 		supported = append(supported, scheme)
 	}
 	c.JSON(http.StatusOK, gin.H{

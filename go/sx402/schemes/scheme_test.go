@@ -1,4 +1,4 @@
-package schemas
+package schemes
 
 import (
 	"fmt"
@@ -11,14 +11,14 @@ import (
 func TestExists(t *testing.T) {
 	network := evmbinding.Base_sepolia
 	usdc := "exact"
-	s, err := GetSchema(usdc, network)
+	s, err := GetScheme(usdc, network)
 	if err != nil {
 		t.Error(err)
 	}
 	log.Println(Assets[*s])
 
 	euros := "EUROS"
-	s, err = GetSchema(euros, network)
+	s, err = GetScheme(euros, network)
 	if err != nil {
 		t.Error(err)
 	}

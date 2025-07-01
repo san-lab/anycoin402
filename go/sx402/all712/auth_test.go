@@ -43,10 +43,10 @@ func TestAuth(t *testing.T) {
 		t.Error(err)
 	}
 
-	ok, addr, err := VerifyTransferWithAuthorizationSignature(ea.Signature, *ea.Authorization, USDCName, "2", sepoliaChainId, common.HexToAddress(USDCOnBaseSepolia))
+	addr, err := VerifyTransferWithAuthorizationSignature(ea.Signature, *ea.Authorization, USDCName, "2", sepoliaChainId, common.HexToAddress(USDCOnBaseSepolia))
 	log.Println(err)
 	log.Println(addr)
-	log.Println(ok)
+
 }
 
 func TestDecodePayload(t *testing.T) {
