@@ -55,3 +55,27 @@ func TestPermit(t *testing.T) {
 	}
 	fmt.Printf("Recovered: %s", rec.Hex())
 }
+
+func TestPaymentHeader(t *testing.T) {
+	ppld := new(all712.PaymentPayload)
+	err := json.Unmarshal([]byte(header), ppld)
+	if err != nil {
+		t.Error()
+		return
+	}
+	permit := new(all712.Permit)
+	err = json.Unmarshal(ppld.Payload, permit)
+	if err != nil {
+		t.Error()
+		return
+	}
+	rec, err := VerifyPermitSignature(permit)
+	if err != nil {
+		t.Error()
+		return
+	}
+	fmt.Println("Recovered address:", rec)
+
+}
+
+const header = `{"x402Version":1,"scheme":"permit_USDC","network":"base-sepolia","payload":{"domain":{"name":"USDC","version":"2","chainId":84532,"verifyingContract":"0x036CbD53842c5426634e7929541eC2318f3dCF7e"},"message":{"owner":"0xaab05558448c8a9597287db9f61e2d751645b12a","spender":"0xfAc178B1C359D41e9162A1A6385380de96809048","value":2200,"deadline":1751542836},"nonce":12,"signature":"0x395670754ee052f0298716f7f2f585a6d9e30d7a2dc63b9d7653e96b8e9d3d6408e3ff9d5484ba83592904b3e8972d8fef30ea0ca62accf842b769864740e9751b"}}`

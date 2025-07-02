@@ -114,7 +114,6 @@ func EnactPermit(permit *all712.Permit, facilKey *ecdsa.PrivateKey) (*common.Has
 		return nil, err
 	}
 
-	// 8. Send transaction
 	err = client.SendTransaction(context.Background(), signedTx)
 	if err != nil {
 		return nil, err
@@ -154,6 +153,7 @@ func TransferFrom(from, to, asset common.Address, amount, chainID *big.Int, faci
 	}
 
 	// 5. Estimate gas limit
+	/* Racy, racy
 	msg := ethereum.CallMsg{
 		From:     from,
 		To:       &asset,
@@ -161,13 +161,16 @@ func TransferFrom(from, to, asset common.Address, amount, chainID *big.Int, faci
 		Value:    big.NewInt(0),
 		Data:     input,
 	}
+
 	gasLimit, err := client.EstimateGas(context.Background(), msg)
 	if err != nil {
 		return nil, err
 	}
+	*/
+	gasLimit := uint64(100000)
 
 	// 6. Create the transaction
-	tx := types.NewTransaction(fromNonce, asset, big.NewInt(0), gasLimit+10000, gasPrice, input)
+	tx := types.NewTransaction(fromNonce, asset, big.NewInt(0), gasLimit, gasPrice, input)
 
 	// 7. Sign the transaction
 	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), facilKey)
