@@ -46,6 +46,30 @@ var ChainIDs = map[string]*big.Int{
 	ZkSync_sepolia: big.NewInt(300),
 }
 
+func GetClientByNetwork(network string) (client *ethclient.Client, err error) {
+	url, ok := GetRPCEndpoint(network)
+	if !ok {
+		err = fmt.Errorf("Unknown network: %s", network)
+		return
+	}
+	return ethclient.Dial(url)
+}
+
+func GetlientByChainID(chainID *big.Int) (client *ethclient.Client, err error) {
+	network := ""
+	for k, v := range ChainIDs {
+		if v.Cmp(chainID) == 0 {
+			network = k
+			break
+		}
+	}
+	if len(network) == 0 {
+		err = fmt.Errorf("Unsupported ChainID: %v", chainID)
+		return
+	}
+	return GetClientByNetwork(network)
+}
+
 func InitClients() map[string]*ethclient.Client {
 	clients := make(map[string]*ethclient.Client)
 	var mu sync.Mutex
@@ -110,7 +134,8 @@ func CheckTokenBalance(client *ethclient.Client, tokenAddress, ownerAddress comm
 	ctx := context.Background()
 	result, err := client.CallContract(ctx, msg, nil)
 	if err != nil {
-		log.Fatalf("Failed to call contract: %v", err)
+		log.Printf("Failed to call contract: %v\n", err)
+		return nil, err
 	}
 
 	// Unpack the result
@@ -144,7 +169,8 @@ func CheckAuthorizationState(client *ethclient.Client, tokenAddress, payer commo
 	ctx := context.Background()
 	result, err := client.CallContract(ctx, msg, nil)
 	if err != nil {
-		log.Fatalf("Failed to call contract: %v", err)
+		log.Printf("Failed to call contract: %v", err)
+		return false, err
 	}
 
 	// Unpack the result

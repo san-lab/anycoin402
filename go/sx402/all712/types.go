@@ -53,7 +53,7 @@ type Permit struct {
 	Domain    Domain        `json:"domain"`
 	Message   PermitMessage `json:"message"`
 	Nonce     *big.Int      `json:"nonce"`
-	Signature []byte        `json:"signature,omitempty"`
+	Signature string        `json:"signature,omitempty"`
 }
 
 type PermitMessage struct {

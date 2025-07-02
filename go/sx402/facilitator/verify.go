@@ -16,6 +16,7 @@ import (
 	"github.com/san-lab/sx402/all712"
 	"github.com/san-lab/sx402/evmbinding"
 	"github.com/san-lab/sx402/schemes"
+	"github.com/san-lab/sx402/signing"
 )
 
 type ExtraInfo map[string]string
@@ -171,7 +172,7 @@ func FormallyVerifyExactEnvelope(envelope *all712.Envelope) (amount, chainID *bi
 		return
 	}
 
-	payer, err = all712.VerifyTransferWithAuthorizationSignature(
+	payer, err = signing.VerifyTransferWithAuthorizationSignature(
 		exactPayload.Signature,
 		*exactPayload.Authorization,
 		einfo["name"], einfo["version"],
@@ -254,7 +255,7 @@ func FormallyVerifyPermitEnvelope(envelope *all712.Envelope) (permit *all712.Per
 
 	amount := permit.Message.Value
 	if amount == nil {
-		err = fmt.Errorf("nil value in ppermit message")
+		err = fmt.Errorf("nil value in permit message")
 		return
 	}
 
@@ -285,7 +286,7 @@ func FormallyVerifyPermitEnvelope(envelope *all712.Envelope) (permit *all712.Per
 		return
 	}
 
-	_, err = all712.VerifyPermitSignature(permit)
+	_, err = signing.VerifyPermitSignature(permit)
 	return
 
 }

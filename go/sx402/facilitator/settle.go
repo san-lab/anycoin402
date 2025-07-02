@@ -64,6 +64,8 @@ func SettleHandler(c *gin.Context) {
 	switch envelope.PaymentPayload.Scheme {
 	case schemes.Scheme_Exact_EURC, schemes.Scheme_Exact_USDC, schemes.Scheme_Exact_EUROS:
 		SettleExactScheme(c, &envelope)
+	case schemes.Scheme_Permit_USDC:
+		SettlePermitScheme(c, &envelope)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported Scheme " + envelope.PaymentPayload.Scheme})
 		c.Abort()
@@ -171,6 +173,40 @@ func SettleExactScheme(c *gin.Context, envelope *all712.Envelope) {
 	response.Transaction = h.Hex()
 	payer := from.Hex()
 	response.Payer = &payer
+	c.JSON(http.StatusOK, response)
+
+}
+
+func SettlePermitScheme(c *gin.Context, envelope *all712.Envelope) {
+	//reuse the exact one for now
+	response := types.SettleResponse{}
+	permit := new(all712.Permit)
+	err := json.Unmarshal(envelope.PaymentPayload.Payload, permit)
+	if err != nil {
+		response.Success = false
+		reason := fmt.Sprintf("when setting: rror unmarshalling the permit (%s)", err)
+		response.ErrorReason = &reason
+		c.JSON(http.StatusBadRequest, response)
+		return
+	}
+
+	_, err = evmbinding.EnactPermit(permit, fpk)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error enacting permit": err})
+		return
+	}
+
+	h, err := evmbinding.TransferFrom(permit.Message.Owner, common.HexToAddress(envelope.PaymentRequirements.PayTo),
+		permit.Domain.VerifyingContract, permit.Message.Value, permit.Domain.ChainID, fpk)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error in transferFrom()": err})
+		return
+	}
+	spender := permit.Message.Spender.Hex()
+	response.Success = true
+	response.Transaction = h.Hex()
+	response.Network = envelope.PaymentRequirements.Network
+	response.Payer = &spender
 	c.JSON(http.StatusOK, response)
 
 }

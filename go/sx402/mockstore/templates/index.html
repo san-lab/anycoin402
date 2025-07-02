@@ -106,53 +106,47 @@
   const tokenName = schema.extra.name;
   const tokenVersion = schema.extra?.version || "2";
 
+  var xPaymentHeader;
  if (schema.scheme.startsWith("permit")) {
   const nonce = await fetchPermitNonce(schema.network, schema.asset, from);
-const deadline = Math.floor(Date.now() / 1000) + 3600;
+  const deadline = validBefore;
 
-const domain = {
-  name: tokenName,                // e.g. "USDC"
-  version: tokenVersion,         // e.g. "2"
-  chainId: expectedChainId,      // e.g. 84532
-  verifyingContract: tokenAddress
-};
+  const domain = {
+    name: tokenName,                // e.g. "USDC"
+    version: tokenVersion,         // e.g. "2"
+    chainId: expectedChainId,      // e.g. 84532
+    verifyingContract: tokenAddress
+  };
 
-const message = {
-  owner: from,
-  spender: schema.extra.facilitator,
-  value,
-  deadline
-};
+  const message = {
+    owner: from,
+    spender: schema.extra.facilitator,
+    value: Number(value),
+    deadline
+  };
 
-const signature = await signPermitAuthorization({
-  owner: from,
-  spender: schema.extra.facilitator,
-  value,
-  nonce,
-  deadline
-}, tokenAddress, tokenName, tokenVersion, expectedChainId);
+  const signature = await signPermitAuthorization({
+    owner: from,
+    spender: schema.extra.facilitator,
+    value,
+    nonce,
+    deadline
+  }, tokenAddress, tokenName, tokenVersion, expectedChainId);
 
-const xPaymentHeader = buildPermitXPaymentHeader({
-  schema,
-  domain,
-  message,
-  nonce,
-  signature
-});
+  xPaymentHeader = buildPermitXPaymentHeader({
+    schema,
+    domain,
+    message,
+    nonce,
+    signature
+  });
 
-console.log("X-Payment Header (Permit):", JSON.stringify(xPaymentHeader));
-return;
-}
+  console.log("X-Payment Header (Permit):", JSON.stringify(xPaymentHeader));
 
-
-
+} else if (schema.scheme.startsWith("exact")) {
   const message = { from, to, value, validAfter, validBefore, nonce };
-
   const signature = await signTransferAuthorization(message, tokenAddress, tokenName, tokenVersion, chainId);
-
-  const payload = {
-    x402Version: 1,
-    paymentPayload: {
+  xPaymentHeader = {
       x402Version: 1,
       scheme: schema.scheme,
       network: schema.network,
@@ -167,17 +161,17 @@ return;
           nonce
         }
       }
-    },
-    paymentRequirements: schema
-  };
+    };
 
-  console.log("payload:", payload);
+} else {
+  console.log("Unknown scheme:", schema.scheme);
+}
 
   try {
     const response = await fetch(currentHref, {
       method: 'GET',
       headers: {
-        'X-Payment': JSON.stringify(payload.paymentPayload)
+        'X-Payment': JSON.stringify(xPaymentHeader)
       }
     });
 
@@ -430,6 +424,7 @@ function buildPermitXPaymentHeader({
   nonce,
   signature
 }) {
+  nonce = Number(nonce);
   return {
     x402Version: 1,
     scheme: schema.scheme,

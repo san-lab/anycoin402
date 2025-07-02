@@ -108,7 +108,7 @@ func X402Middleware(c *gin.Context) {
 	}
 
 	var env = new(all712.Envelope)
-	headerPayload := new(types.PaymentPayload)
+	headerPayload := new(all712.PaymentPayload)
 	if err := json.Unmarshal([]byte(paymentHeader), &headerPayload); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad X-Payment header"})
 		c.Abort()
@@ -127,13 +127,12 @@ func X402Middleware(c *gin.Context) {
 		return
 	}
 
-	headerPayloadBytes, _ := json.Marshal(headerPayload.Payload)
 	env.X402Version = 1
 	env.PaymentPayload = &all712.PaymentPayload{
 		X402Version: headerPayload.X402Version,
 		Scheme:      headerPayload.Scheme,
 		Network:     headerPayload.Network,
-		Payload:     headerPayloadBytes,
+		Payload:     headerPayload.Payload,
 	}
 
 	if err := validatePayment(env); err != nil {

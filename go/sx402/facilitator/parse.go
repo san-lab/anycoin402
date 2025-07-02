@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/gin-gonic/gin"
 	"github.com/san-lab/sx402/all712"
 	"github.com/san-lab/sx402/evmbinding"
@@ -40,13 +39,8 @@ func SetupClient(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": reason})
 		return
 	}
-	url, ok := evmbinding.GetRPCEndpoint(network)
-	if !ok {
-		reason := "Unsupported network: " + network
-		c.JSON(http.StatusBadRequest, gin.H{"error": reason})
-		return
-	}
-	client, err := ethclient.Dial(url)
+
+	client, err := evmbinding.GetClientByNetwork(network)
 	if err != nil {
 		reason := fmt.Sprintf("could not connect to rpc: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": reason})

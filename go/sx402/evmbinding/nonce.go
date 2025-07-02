@@ -46,11 +46,7 @@ func getNonce(ctx context.Context, client *ethclient.Client, address common.Addr
 }
 
 func PermitNonce(network, asset, owner string) (*big.Int, error) {
-	rpc, ok := GetRPCEndpoint(network)
-	if !ok {
-		return nil, fmt.Errorf("unsupported network: %s", network)
-	}
-	client, err := ethclient.Dial(rpc)
+	client, err := GetClientByNetwork(network)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to rpc: %w", err)
 	}
