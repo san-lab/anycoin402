@@ -24,9 +24,10 @@ struct {
 }
 */
 
-var Exact_EURO_S_SchemeExtraBytes []byte
+var Exact_EURS_SchemeExtraBytes []byte
 var Exact_USDC_SchemeExtraBytes []byte
 var Exact_EURC_SchemeExtraBytes []byte
+var Payer0_SchemeExtraBytes []byte
 
 var Permit_USDC_SchemeExtraBytes []byte
 
@@ -35,7 +36,11 @@ type Scheme struct {
 	Network    string
 }
 
-const BASE_SEPOLIA_EUROS = "0x6Ac14e603A2742fB919248D66c8ecB05D8Aec1e9"
+const BASE_SEPOLIA_EURS = "0x89D5F29be7753E4c0ad43D08A5067Afc99231CC9" //"0x6Ac14e603A2742fB919248D66c8ecB05D8Aec1e9"
+const AMOY_EURS = "0x73a4F05628fE6976a5d45Fd321b4eD588D8c9Eb3"
+const OP_SEPOLIA_EURS = "0x34E2c5d3ac5D07a280f49f0c0B7c69E29BC68F09"
+const ARITRUM_SEPOLIA_EURS = "0x8069a68DdaAFE2227f1AF283D23fD6FC2C59b6EC"
+
 const BASE_SEPOLIA_USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
 const AMOY_USDC = "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582"
 const SEPOLIA_EURC = "0x08210F9170F89Ab7658F0B5E3fF39b0E03C594D4"
@@ -43,42 +48,58 @@ const SEPOLIA_USDC = "0x93dB8F200E46FD10dbA87E7563148C3cf6985352"
 const ZKSYNC_SEPOLIA_USDC = "0xAe045DE5638162fa134807Cb558E15A3F5A7F853"
 
 const Scheme_Exact_USDC = "exact"
-const Scheme_Exact_EUROS = "exact_EUROS"
+const Scheme_Exact_EURS = "exact_EURS"
 const Scheme_Exact_EURC = "exact_EURC"
 const Scheme_Permit_USDC = "permit_USDC"
+const Scheme_Payer0 = "payer0"
 
+// ----------------- SCHEMES -------------
 var ExactUsdcOnBaseSepolia = Scheme{Scheme_Exact_USDC, evmbinding.Base_sepolia}
-var ExactEurosOnBaseSepolia = Scheme{Scheme_Exact_EUROS, evmbinding.Base_sepolia}
 var ExactUsdcOnAmoy = Scheme{Scheme_Exact_USDC, evmbinding.Amoy}
 var ExactEurcOnSepolia = Scheme{Scheme_Exact_EURC, evmbinding.Sepolia}
 var ExactUsdcOnSepolia = Scheme{Scheme_Exact_USDC, evmbinding.Sepolia}
 var ExactUsdcOnZksyncSepolia = Scheme{Scheme_Exact_USDC, evmbinding.ZkSync_sepolia}
 var PermitUsdcOnBaseSepolia = Scheme{Scheme_Permit_USDC, evmbinding.Base_sepolia}
 
+var ExactEursOnBaseSepolia = Scheme{Scheme_Exact_EURS, evmbinding.Base_sepolia}
+var ExactEursOnOpSepolia = Scheme{Scheme_Exact_EURS, evmbinding.OP_Sepolia}
+var ExactEursOnArbitrumSepolia = Scheme{Scheme_Exact_EURS, evmbinding.Arbitrum_sepolia}
+var ExactEursOnAmoy = Scheme{Scheme_Exact_EURS, evmbinding.Amoy}
+
+var Payer0OnBaseSepolia = Scheme{Scheme_Payer0, evmbinding.Base_sepolia}
+
+//---------SCHEMES END---------------
+
 var Assets = map[Scheme]string{
-	ExactUsdcOnBaseSepolia:   BASE_SEPOLIA_USDC,
-	ExactEurosOnBaseSepolia:  BASE_SEPOLIA_EUROS,
+	ExactUsdcOnBaseSepolia: BASE_SEPOLIA_USDC,
+
+	ExactEursOnBaseSepolia:     BASE_SEPOLIA_EURS,
+	ExactEursOnArbitrumSepolia: ARITRUM_SEPOLIA_EURS,
+	ExactEursOnAmoy:            AMOY_EURS,
+	ExactEursOnOpSepolia:       OP_SEPOLIA_EURS,
+
 	ExactUsdcOnAmoy:          AMOY_USDC,
 	ExactEurcOnSepolia:       SEPOLIA_EURC,
 	ExactUsdcOnSepolia:       SEPOLIA_USDC,
 	ExactUsdcOnZksyncSepolia: ZKSYNC_SEPOLIA_USDC,
 	PermitUsdcOnBaseSepolia:  BASE_SEPOLIA_USDC,
+	Payer0OnBaseSepolia:      BASE_SEPOLIA_EURS,
 }
 
 // it works because pointers, otherwise init() timing goes wrrrr...
-var extras = map[Scheme]*json.RawMessage{
-	ExactUsdcOnBaseSepolia:   (*json.RawMessage)(&Exact_USDC_SchemeExtraBytes),
-	ExactEurosOnBaseSepolia:  (*json.RawMessage)(&Exact_EURO_S_SchemeExtraBytes),
-	ExactUsdcOnAmoy:          (*json.RawMessage)(&Exact_USDC_SchemeExtraBytes),
-	ExactUsdcOnSepolia:       (*json.RawMessage)(&Exact_USDC_SchemeExtraBytes),
-	ExactEurcOnSepolia:       (*json.RawMessage)(&Exact_EURC_SchemeExtraBytes),
-	ExactUsdcOnZksyncSepolia: (*json.RawMessage)(&Exact_USDC_SchemeExtraBytes),
-	PermitUsdcOnBaseSepolia:  (*json.RawMessage)(&Permit_USDC_SchemeExtraBytes),
+var extras = map[string]*json.RawMessage{ //by Scheme name
+	Scheme_Exact_USDC:  (*json.RawMessage)(&Exact_USDC_SchemeExtraBytes),
+	Scheme_Exact_EURS:  (*json.RawMessage)(&Exact_EURS_SchemeExtraBytes),
+	Scheme_Exact_EURC:  (*json.RawMessage)(&Exact_EURC_SchemeExtraBytes),
+	Scheme_Permit_USDC: (*json.RawMessage)(&Permit_USDC_SchemeExtraBytes),
+	Scheme_Payer0:      (*json.RawMessage)(&Payer0_SchemeExtraBytes),
+
+	//Payer0O
 }
 
 func init() {
 	var err error
-	Exact_EURO_S_SchemeExtraBytes, err = json.Marshal(map[string]string{"name": "EURO_S", "version": "2"})
+	Exact_EURS_SchemeExtraBytes, err = json.Marshal(map[string]string{"name": "EURS", "version": "1"})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -95,6 +116,11 @@ func init() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	Payer0_SchemeExtraBytes, err = json.Marshal(map[string]string{"name": "EURS", "version": "1", "dstEid": "40231"})
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func GetScheme(name, network string) (*Scheme, error) {
@@ -102,7 +128,7 @@ func GetScheme(name, network string) (*Scheme, error) {
 	s.Network = network
 	s.SchemeName = name
 	_, ok := Assets[*s]
-	_, ok2 := extras[*s]
+	_, ok2 := extras[*&s.SchemeName]
 	if ok && ok2 {
 		return s, nil
 	}
@@ -116,7 +142,7 @@ func (s *Scheme) Requirement(resource, price, payto string) *types.PaymentRequir
 		Asset:             Assets[*s],
 		MaxAmountRequired: price,
 		Resource:          resource,
-		Extra:             extras[*s],
+		Extra:             extras[s.SchemeName],
 		Network:           s.Network,
 		Scheme:            s.SchemeName,
 	}

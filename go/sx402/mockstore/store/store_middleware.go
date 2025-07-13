@@ -46,54 +46,12 @@ func X402Middleware(c *gin.Context) {
 
 	accepts := []*types.PaymentRequirements{}
 
-	network := evmbinding.Base_sepolia
-	usdcs, err := schemes.GetScheme(schemes.Scheme_Exact_USDC, network)
-	if err != nil {
-		log.Println(err)
+	addRequirement(schemes.Scheme_Exact_USDC, evmbinding.Base_sepolia, resourceURI, usdprice, &accepts)
+	addRequirement(schemes.Scheme_Exact_USDC, evmbinding.Amoy, resourceURI, usdprice, &accepts)
 
-	} else {
-
-		accepts = append(accepts, usdcs.Requirement(resourceURI, usdprice, store_wallet))
-	}
-	euros, err := schemes.GetScheme(schemes.Scheme_Exact_EUROS, network)
-	if err != nil {
-		log.Println(err)
-
-	} else {
-		accepts = append(accepts, euros.Requirement(resourceURI, price, store_wallet))
-	}
-
-	amoyusdc, err := schemes.GetScheme(schemes.Scheme_Exact_USDC, evmbinding.Amoy)
-	if err != nil {
-		log.Println(err)
-
-	} else {
-		accepts = append(accepts, amoyusdc.Requirement(resourceURI, usdprice, store_wallet))
-	}
-
-	sepoliaeurc, err := schemes.GetScheme(schemes.Scheme_Exact_EURC, evmbinding.Sepolia)
-	if err != nil {
-		log.Println(err)
-
-	} else {
-		accepts = append(accepts, sepoliaeurc.Requirement(resourceURI, price, store_wallet))
-	}
-
-	zksyncussdc, err := schemes.GetScheme(schemes.Scheme_Exact_USDC, evmbinding.ZkSync_sepolia)
-	if err != nil {
-		log.Println(err)
-
-	} else {
-		accepts = append(accepts, zksyncussdc.Requirement(resourceURI, usdprice, store_wallet))
-	}
-
-	permitUsdcBaseSepolia, err := schemes.GetScheme(schemes.Scheme_Permit_USDC, evmbinding.Base_sepolia)
-	if err != nil {
-		log.Println(err)
-
-	} else {
-		accepts = append(accepts, permitUsdcBaseSepolia.Requirement(resourceURI, usdprice, store_wallet))
-	}
+	addRequirement(schemes.Scheme_Exact_EURS, evmbinding.Base_sepolia, resourceURI, price, &accepts)
+	addRequirement(schemes.Scheme_Exact_EURS, evmbinding.Arbitrum_sepolia, resourceURI, price, &accepts)
+	addRequirement(schemes.Scheme_Payer0, evmbinding.Base_sepolia, resourceURI, price, &accepts)
 
 	if paymentHeader == "" {
 
@@ -155,6 +113,9 @@ func X402Middleware(c *gin.Context) {
 		c.Set("settleReponse", settleResponse)
 		c.Set("network", headerPayload.Network)
 		explorer := evmbinding.ExplorerURLs[headerPayload.Network]
+		if headerPayload.Scheme == "payer0" {
+			explorer = "https://testnet.layerzeroscan.com/"
+		}
 		c.Set("explorer", explorer)
 		c.Set("facilitator", facilitatorURI)
 		c.Next()
@@ -228,4 +189,16 @@ func settlePayment(env *all712.Envelope) (*types.SettleResponse, error) {
 		return nil, fmt.Errorf("error paring reponse from the facilitator/settle: %w", err)
 	}
 	return stres, nil
+}
+
+func addRequirement(scheme_name, network, resourceURI, price string, accepts *[]*types.PaymentRequirements) bool {
+	scheme, err := schemes.GetScheme(scheme_name, network)
+	if err != nil {
+		log.Println(err)
+		return false
+	} else {
+
+		*accepts = append(*accepts, scheme.Requirement(resourceURI, price, store_wallet))
+	}
+	return true
 }

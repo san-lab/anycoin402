@@ -143,25 +143,48 @@
 
   console.log("X-Payment Header (Permit):", JSON.stringify(xPaymentHeader));
 
-} else if (schema.scheme.startsWith("exact")) {
+} else if (schema.scheme.startsWith("exact") || schema.scheme.startsWith("payer0")) {
   const message = { from, to, value, validAfter, validBefore, nonce };
   const signature = await signTransferAuthorization(message, tokenAddress, tokenName, tokenVersion, chainId);
-  xPaymentHeader = {
+
+  const basePayload = {
+    signature,
+    authorization: {
+      from,
+      to,
+      value: value.toString(),
+      validAfter: validAfter.toString(),
+      validBefore: validBefore.toString(),
+      nonce
+    }
+  };
+
+  if (schema.scheme.startsWith("payer0")) {
+    const dstEid = parseInt(schema.extra?.dstEid);
+    if (isNaN(dstEid)) {
+      alert("Missing or invalid destEid for payer0 scheme.");
+      return;
+    }
+    console.log(dstEid);
+
+    xPaymentHeader = {
       x402Version: 1,
       scheme: schema.scheme,
       network: schema.network,
       payload: {
-        signature,
-        authorization: {
-          from,
-          to,
-          value: value.toString(),
-          validAfter: validAfter.toString(),
-          validBefore: validBefore.toString(),
-          nonce
-        }
+        ...basePayload,
+        dstEid,
+        minAmount: Number(value)
       }
     };
+  } else {
+    xPaymentHeader = {
+      x402Version: 1,
+      scheme: schema.scheme,
+      network: schema.network,
+      payload: basePayload
+    };
+  }
 
 } else {
   console.log("Unknown scheme:", schema.scheme);

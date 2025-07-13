@@ -22,28 +22,37 @@ const Amoy = "amoy"
 const Sepolia = "sepolia"
 const Holesky = "holesky"
 const ZkSync_sepolia = "zksync-sepolia"
+const Arbitrum_sepolia = "arbitrum-sepolia"
+const OP_Sepolia = "op-sepolia"
 
-var rpcEndpoints = map[string]string{Base_sepolia: "https://sepolia.base.org",
-	Sepolia:        "https://ethereum-sepolia-rpc.publicnode.com",
-	Amoy:           "https://rpc-amoy.polygon.technology/",
-	Holesky:        "https://ethereum-holesky.publicnode.com",
-	ZkSync_sepolia: "https://sepolia.era.zksync.dev",
+var rpcEndpoints = map[string]string{
+	Base_sepolia:     "https://sepolia.base.org",
+	Sepolia:          "https://ethereum-sepolia-rpc.publicnode.com",
+	Amoy:             "https://rpc-amoy.polygon.technology/",
+	Holesky:          "https://ethereum-holesky.publicnode.com",
+	ZkSync_sepolia:   "https://sepolia.era.zksync.dev",
+	Arbitrum_sepolia: "https://arbitrum-sepolia.gateway.tenderly.co",
+	OP_Sepolia:       "https://optimism-sepolia.gateway.tenderly.co",
 }
 
 var ExplorerURLs = map[string]string{
-	Base_sepolia:   "https://sepolia.basescan.org", // Basescan (Etherscan-style)
-	Sepolia:        "https://sepolia.etherscan.io", // Official Sepolia Etherscan
-	Amoy:           "https://amoy.polygonscan.com", // Polygonscan for Amoy
-	Holesky:        "https://holesky.etherscan.io", // Etherscan for Holesky
-	ZkSync_sepolia: "https://sepolia-era.zksync.network/",
+	Base_sepolia:     "https://sepolia.basescan.org", // Basescan (Etherscan-style)
+	Sepolia:          "https://sepolia.etherscan.io", // Official Sepolia Etherscan
+	Amoy:             "https://amoy.polygonscan.com", // Polygonscan for Amoy
+	Holesky:          "https://holesky.etherscan.io", // Etherscan for Holesky
+	ZkSync_sepolia:   "https://sepolia-era.zksync.network/",
+	Arbitrum_sepolia: "https://sepolia.arbiscan.io",
+	OP_Sepolia:       "https://sepolia-optimism.etherscan.io/",
 }
 
 var ChainIDs = map[string]*big.Int{
-	Base_sepolia:   big.NewInt(84532),
-	Sepolia:        big.NewInt(11155111),
-	Amoy:           big.NewInt(80002),
-	Holesky:        big.NewInt(17000),
-	ZkSync_sepolia: big.NewInt(300),
+	Base_sepolia:     big.NewInt(84532),
+	Sepolia:          big.NewInt(11155111),
+	Amoy:             big.NewInt(80002),
+	Holesky:          big.NewInt(17000),
+	ZkSync_sepolia:   big.NewInt(300),
+	Arbitrum_sepolia: big.NewInt(421614),
+	OP_Sepolia:       big.NewInt(11155420),
 }
 
 func GetClientByNetwork(network string) (client *ethclient.Client, err error) {

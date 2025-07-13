@@ -1,6 +1,7 @@
 package facilitator
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
 	"encoding/json"
@@ -12,6 +13,7 @@ import (
 	"log"
 
 	"github.com/coinbase/x402/go/pkg/types"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -19,6 +21,7 @@ import (
 	kms "github.com/proveniencenft/kmsclitool/common"
 	"github.com/san-lab/sx402/all712"
 	"github.com/san-lab/sx402/evmbinding"
+	"github.com/san-lab/sx402/oft"
 	"github.com/san-lab/sx402/schemes"
 	"github.com/san-lab/sx402/state"
 )
@@ -62,10 +65,12 @@ func SettleHandler(c *gin.Context) {
 	envelope := enlp.(all712.Envelope)
 
 	switch envelope.PaymentPayload.Scheme {
-	case schemes.Scheme_Exact_EURC, schemes.Scheme_Exact_USDC, schemes.Scheme_Exact_EUROS:
+	case schemes.Scheme_Exact_EURC, schemes.Scheme_Exact_USDC, schemes.Scheme_Exact_EURS:
 		SettleExactScheme(c, &envelope)
 	case schemes.Scheme_Permit_USDC:
 		SettlePermitScheme(c, &envelope)
+	case schemes.Scheme_Payer0:
+		SettlePayerZero(c, &envelope)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported Scheme " + envelope.PaymentPayload.Scheme})
 		c.Abort()
@@ -202,11 +207,126 @@ func SettlePermitScheme(c *gin.Context, envelope *all712.Envelope) {
 		c.JSON(http.StatusBadRequest, gin.H{"error in transferFrom()": err})
 		return
 	}
+	state.GetReceiptCollector().Submit(*h, envelope.PaymentPayload.Network)
 	spender := permit.Message.Spender.Hex()
 	response.Success = true
 	response.Transaction = h.Hex()
 	response.Network = envelope.PaymentRequirements.Network
 	response.Payer = &spender
+	c.JSON(http.StatusOK, response)
+
+}
+
+func SettlePayerZero(c *gin.Context, envelope *all712.Envelope) {
+	response := types.SettleResponse{}
+
+	payer0Payload := new(types.ExactEvmPayload)
+	err := json.Unmarshal(envelope.PaymentPayload.Payload, payer0Payload)
+	if err != nil {
+		response.Success = false
+		reason := fmt.Sprintf("when setting: rror unmarshalling the payer0 payload (%s)", err)
+		response.ErrorReason = &reason
+		c.JSON(http.StatusBadRequest, response)
+		return
+	}
+
+	clnt, exists := c.Get("client")
+	if !exists {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "No Client from middleware"})
+		return
+	}
+
+	amount, minAmount, chainID, dstEid, payer, asset, nonce, vafter, vbefore, err := FormallyVerifyPayer0Envelope(envelope)
+	if err != nil {
+		reason := fmt.Sprintf("error Invalid format: %v", err)
+		response.ErrorReason = &reason
+		c.JSON(http.StatusBadRequest, response)
+		return
+	}
+
+	client := clnt.(*ethclient.Client)
+
+	response.Network = envelope.PaymentPayload.Network
+	payto, err := hex.DecodeString(envelope.PaymentRequirements.PayTo[2:])
+	if err != nil {
+		log.Fatalf("Error decoding payTo. This cannot happen: %v", err)
+		c.JSON(http.StatusInternalServerError, "internal kms error")
+		return
+	}
+	sendParam := new(oft.SendParam)
+	sendParam.AmountLD = amount
+	sendParam.MinAmountLD = minAmount
+	sendParam.ExtraOptions = []byte{0, 3}
+	sendParam.To = [32]byte(common.LeftPadBytes(payto, 32))
+	sendParam.DstEid = dstEid
+	sendParam.OftCmd = []byte{}
+	sendParam.OftCmd = []byte{}
+
+	p0token, err := oft.NewOft(asset, client)
+	if err != nil {
+		reason := fmt.Sprintf("error binding token contract: %v", err)
+		response.ErrorReason = &reason
+		c.JSON(http.StatusBadRequest, response)
+		return
+	}
+
+	// Create a new CallOpts (read-only call)
+	callOpts := &bind.CallOpts{
+		Context: context.Background(),
+	}
+
+	// Set the _payInLzToken parameter (true or false as required).
+	payInLzToken := false
+
+	// Call quoteSend on the contract.
+	messagingFee, err := p0token.QuoteSend(callOpts, *sendParam, payInLzToken)
+	if err != nil {
+		reason := fmt.Sprintf("error quoting send price: %v", err)
+		response.ErrorReason = &reason
+		c.JSON(http.StatusOK, response) //is it OK?
+		return
+	}
+
+	auth, err := bind.NewKeyedTransactorWithChainID(fpk, chainID)
+	if err != nil {
+		log.Fatalf("Failed to create TransactOpts: %v", err)
+		c.JSON(http.StatusInternalServerError, "internal kms error")
+		return
+	}
+
+	gasPrice, err := client.SuggestGasPrice(context.Background())
+	if err != nil {
+		reason := fmt.Sprintf("error getting price suggestion: %v", err)
+		response.ErrorReason = &reason
+		c.JSON(http.StatusInternalServerError, response)
+		return
+	}
+
+	// Optionally customize gas
+	auth.GasLimit = uint64(1000000)                           // set if needed
+	auth.GasPrice = gasPrice.Add(gasPrice, big.NewInt(30000)) //
+	auth.Value = messagingFee.NativeFee                       //.Mul(messagingFee.NativeFee, big.NewInt(2))
+
+	sig, err := hex.DecodeString(payer0Payload.Signature[2:])
+	if err != nil {
+		log.Fatalf("Error decoding signature. This cannot happn: %v", err)
+		c.JSON(http.StatusInternalServerError, "internal kms error")
+		return
+	}
+	txh, err := p0token.SendWithAuthorization(auth, *sendParam, messagingFee, payer, vafter, vbefore, nonce, sig, common.HexToAddress(keyfile.Address))
+	if err != nil {
+		reason := fmt.Sprintf("error sending: %v", err)
+		response.ErrorReason = &reason
+		c.JSON(http.StatusOK, response) //is it OK?
+		return
+
+	}
+	fmt.Printf("transaction hash: %s", txh.Hash().Hex())
+	state.GetReceiptCollector().Submit(txh.Hash(), envelope.PaymentPayload.Network)
+
+	response.Success = true
+	response.Transaction = txh.Hash().Hex()
+	response.Payer = &envelope.PaymentRequirements.PayTo
 	c.JSON(http.StatusOK, response)
 
 }

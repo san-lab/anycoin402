@@ -83,3 +83,10 @@ func (permit *Permit) Digest() ([]byte, error) {
 		permit.Domain.Version,
 	)
 }
+
+type Payer03009Payload struct {
+	Signature     string                              `json:"signature"`
+	Authorization *types.ExactEvmPayloadAuthorization `json:"authorization"`
+	DestEid       uint32                              `json:"dstEid"` // LayerZero hain ID
+	MinAmmount    *big.Int                            `json:"minAmount"`
+}
