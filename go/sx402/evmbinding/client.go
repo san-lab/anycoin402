@@ -55,7 +55,7 @@ func init() {
 
 func LoadConfigs() {
 	log.Println(LoadOverrides("config/rpcs.json", rpcEndpoints))
-	log.Println(LoadOverrides("config/explorers.json", rpcEndpoints))
+	log.Println(LoadOverrides("config/explorers.json", ExplorerURLs))
 }
 
 func LoadOverrides(relativePath string, targetMap map[string]string) error {
