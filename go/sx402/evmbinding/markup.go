@@ -31,7 +31,7 @@ const markupABI = `[{
   "type": "function"
 }]`
 
-func GetMarkup(network, asset, facilitator string) (*big.Int, error) {
+func GetMarkup(network, asset, facilitator string) (markup *big.Int, err error) {
 	client, err := GetClientByNetwork(network)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to rpc: %w", err)
@@ -50,7 +50,8 @@ func GetMarkup(network, asset, facilitator string) (*big.Int, error) {
 
 	data, err := parsedABI.Pack("markups", facAddress)
 	if err != nil {
-		return nil, fmt.Errorf("failed to pack input data: %w", err)
+
+		return
 	}
 
 	callMsg := ethereum.CallMsg{
@@ -65,7 +66,7 @@ func GetMarkup(network, asset, facilitator string) (*big.Int, error) {
 	}
 
 	// unpack output (uint256 nonce)
-	var markup *big.Int
+	markup = big.NewInt(0)
 	err = parsedABI.UnpackIntoInterface(&markup, "markups", output)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unpack output: %w", err)

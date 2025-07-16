@@ -182,7 +182,6 @@ func ParseAndVerifyPayer0(c *gin.Context, envelope *all712.Envelope) {
 	markup, insignificant_err := evmbinding.GetMarkup(envelope.PaymentPayload.Network, envelope.PaymentRequirements.Asset, keyfile.Address)
 	if insignificant_err != nil {
 		log.Println(insignificant_err)
-		markup = big.NewInt(0)
 	}
 
 	if pd.Amount.Cmp(markup) == -1 {
