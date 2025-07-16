@@ -69,7 +69,7 @@ func SettleHandler(c *gin.Context) {
 		SettleExactScheme(c, &envelope)
 	case schemes.Scheme_Permit_USDC:
 		SettlePermitScheme(c, &envelope)
-	case schemes.Scheme_Payer0:
+	case schemes.Scheme_Payer0_toArbitrum, schemes.Scheme_Payer0_toBase, schemes.Scheme_Payer0M_toBase:
 		SettlePayerZero(c, &envelope)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported Scheme " + envelope.PaymentPayload.Scheme})
@@ -218,17 +218,8 @@ func SettlePermitScheme(c *gin.Context, envelope *all712.Envelope) {
 }
 
 func SettlePayerZero(c *gin.Context, envelope *all712.Envelope) {
-	response := types.SettleResponse{}
 
-	payer0Payload := new(types.ExactEvmPayload)
-	err := json.Unmarshal(envelope.PaymentPayload.Payload, payer0Payload)
-	if err != nil {
-		response.Success = false
-		reason := fmt.Sprintf("when setting: rror unmarshalling the payer0 payload (%s)", err)
-		response.ErrorReason = &reason
-		c.JSON(http.StatusBadRequest, response)
-		return
-	}
+	response := types.SettleResponse{}
 
 	clnt, exists := c.Get("client")
 	if !exists {
@@ -236,7 +227,7 @@ func SettlePayerZero(c *gin.Context, envelope *all712.Envelope) {
 		return
 	}
 
-	amount, minAmount, chainID, dstEid, payer, asset, nonce, vafter, vbefore, err := FormallyVerifyPayer0Envelope(envelope)
+	pd, err := FormallyVerifyPayer0Envelope(envelope)
 	if err != nil {
 		reason := fmt.Sprintf("error Invalid format: %v", err)
 		response.ErrorReason = &reason
@@ -246,6 +237,11 @@ func SettlePayerZero(c *gin.Context, envelope *all712.Envelope) {
 
 	client := clnt.(*ethclient.Client)
 
+	markup, insignificant_err := evmbinding.GetMarkup(envelope.PaymentPayload.Network, envelope.PaymentRequirements.Asset, keyfile.Address)
+	if insignificant_err != nil {
+		log.Println(insignificant_err)
+	}
+
 	response.Network = envelope.PaymentPayload.Network
 	payto, err := hex.DecodeString(envelope.PaymentRequirements.PayTo[2:])
 	if err != nil {
@@ -254,15 +250,15 @@ func SettlePayerZero(c *gin.Context, envelope *all712.Envelope) {
 		return
 	}
 	sendParam := new(oft.SendParam)
-	sendParam.AmountLD = amount
-	sendParam.MinAmountLD = minAmount
+	sendParam.AmountLD = pd.Amount
+	sendParam.MinAmountLD = big.NewInt(0).Sub(pd.Amount, markup)
 	sendParam.ExtraOptions = []byte{0, 3}
 	sendParam.To = [32]byte(common.LeftPadBytes(payto, 32))
-	sendParam.DstEid = dstEid
+	sendParam.DstEid = pd.DstEid
 	sendParam.OftCmd = []byte{}
 	sendParam.OftCmd = []byte{}
 
-	p0token, err := oft.NewOft(asset, client)
+	p0token, err := oft.NewOft(pd.Asset, client)
 	if err != nil {
 		reason := fmt.Sprintf("error binding token contract: %v", err)
 		response.ErrorReason = &reason
@@ -287,7 +283,7 @@ func SettlePayerZero(c *gin.Context, envelope *all712.Envelope) {
 		return
 	}
 
-	auth, err := bind.NewKeyedTransactorWithChainID(fpk, chainID)
+	auth, err := bind.NewKeyedTransactorWithChainID(fpk, pd.chainID)
 	if err != nil {
 		log.Fatalf("Failed to create TransactOpts: %v", err)
 		c.JSON(http.StatusInternalServerError, "internal kms error")
@@ -307,13 +303,8 @@ func SettlePayerZero(c *gin.Context, envelope *all712.Envelope) {
 	auth.GasPrice = gasPrice.Add(gasPrice, big.NewInt(30000)) //
 	auth.Value = messagingFee.NativeFee                       //.Mul(messagingFee.NativeFee, big.NewInt(2))
 
-	sig, err := hex.DecodeString(payer0Payload.Signature[2:])
-	if err != nil {
-		log.Fatalf("Error decoding signature. This cannot happn: %v", err)
-		c.JSON(http.StatusInternalServerError, "internal kms error")
-		return
-	}
-	txh, err := p0token.SendWithAuthorization(auth, *sendParam, messagingFee, payer, vafter, vbefore, nonce, sig, common.HexToAddress(keyfile.Address))
+	txh, err := p0token.SendWithAuthorization(auth, *sendParam, messagingFee, pd.Payer,
+		pd.ValidAfter, pd.ValidBefore, pd.nonce, pd.signature, common.HexToAddress(keyfile.Address))
 	if err != nil {
 		reason := fmt.Sprintf("error sending: %v", err)
 		response.ErrorReason = &reason

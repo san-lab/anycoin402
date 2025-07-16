@@ -102,7 +102,7 @@ func TestAddSignature(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	recovered, err := VerifyTransferWithAuthorizationSignature(ppld.Payload.Signature, *ppld.Payload.Authorization, extra["name"], extra["version"], big.NewInt(84532), common.HexToAddress(preq.Asset))
+	recovered, _, _, err := VerifyTransferWithAuthorizationSignature(ppld.Payload.Signature, *ppld.Payload.Authorization, extra["name"], extra["version"], big.NewInt(84532), common.HexToAddress(preq.Asset))
 	if err != nil {
 		t.Error(err)
 	}
@@ -125,7 +125,7 @@ func TestJMignature(t *testing.T) {
 		Nonce:       "0xb55ba27ac38b7e4f4b9aa4289bae8813e42c39024b4c253afb2b5d3df0c6065e",
 	}
 
-	recovered, err := VerifyTransferWithAuthorizationSignature(signature, auth, tokenName, tokenVersion, big.NewInt(84532), common.HexToAddress(tokenAddress))
+	recovered, _, _, err := VerifyTransferWithAuthorizationSignature(signature, auth, tokenName, tokenVersion, big.NewInt(84532), common.HexToAddress(tokenAddress))
 	if err != nil {
 		t.Error(err)
 	}
@@ -150,7 +150,7 @@ func TestMessage(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	payer, err := VerifyTransferWithAuthorizationSignature(sig1, *auth, "USDC", "2", big.NewInt(80002), common.HexToAddress(schemes.AMOY_USDC))
+	payer, _, _, err := VerifyTransferWithAuthorizationSignature(sig1, *auth, "USDC", "2", big.NewInt(80002), common.HexToAddress(schemes.AMOY_USDC))
 	fmt.Println(payer, err)
 
 	privkeyhex := "56c11c2fee673894e85151857339066cd244d4932f23e660ce8502c867d0927e"
@@ -164,7 +164,7 @@ func TestMessage(t *testing.T) {
 	auth.Nonce = nonce.Hex()
 
 	sig2, err := SignERC3009Authorization(auth, privkey, big.NewInt(80002), "USDC", "2", common.HexToAddress(schemes.AMOY_USDC))
-	payer, err = VerifyTransferWithAuthorizationSignature(fmt.Sprintf("0x%x", sig2), *auth, "USDC", "2", big.NewInt(80002), common.HexToAddress(schemes.AMOY_USDC))
+	payer, _, _, err = VerifyTransferWithAuthorizationSignature(fmt.Sprintf("0x%x", sig2), *auth, "USDC", "2", big.NewInt(80002), common.HexToAddress(schemes.AMOY_USDC))
 	fmt.Println(payer, err)
 
 }
@@ -185,7 +185,7 @@ func TestJMH(t *testing.T) {
 		t.Error(err)
 	}
 	auth := ph.Payload.Authorization
-	payer, err := VerifyTransferWithAuthorizationSignature(ph.Payload.Signature, *auth, "USDC", "2", big.NewInt(84532), common.HexToAddress("0x036CbD53842c5426634e7929541eC2318f3dCF7e"))
+	payer, _, _, err := VerifyTransferWithAuthorizationSignature(ph.Payload.Signature, *auth, "USDC", "2", big.NewInt(84532), common.HexToAddress("0x036CbD53842c5426634e7929541eC2318f3dCF7e"))
 	fmt.Println(payer, err)
 
 }

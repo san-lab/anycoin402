@@ -3,8 +3,10 @@ package facilitator
 import (
 	"fmt"
 	"log"
+	"math/big"
 	"net/http"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/gin-gonic/gin"
 	"github.com/san-lab/sx402/all712"
 	"github.com/san-lab/sx402/evmbinding"
@@ -48,4 +50,17 @@ func SetupClient(c *gin.Context) {
 	}
 	c.Set("client", client)
 	c.Next()
+}
+
+type ParsedData struct {
+	Amount      *big.Int
+	Markup      *big.Int
+	chainID     *big.Int
+	DstEid      uint32
+	Payer       common.Address
+	Asset       common.Address
+	ValidAfter  *big.Int
+	ValidBefore *big.Int
+	signature   []byte
+	nonce       [32]byte
 }

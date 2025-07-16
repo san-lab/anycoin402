@@ -40,6 +40,7 @@ func Start(withStore bool, facilitatorPassword []byte) {
 	router.GET("facilitator/receiptraw", HandlerReceiptStatus)
 	router.GET("facilitator/receipt", prettyReceiptPage)
 	router.GET("facilitator/permitnonce", permitNonceHandler)
+	router.GET("facilitator/markup", getMarkup)
 	withEnvelope := router.Group("/facilitator", RequestLogger(), ParseEnvelope, SetupClient)
 	withEnvelope.POST("/verify", verifyHandler)
 	withEnvelope.POST("/settle", SettleHandler)
@@ -83,8 +84,8 @@ func RequestLogger() gin.HandlerFunc {
 }
 
 func getSupported(c *gin.Context) {
-	supported := []schemes.Scheme{}
-	for scheme := range schemes.Assets {
+	supported := []schemes.SchemeKey{}
+	for scheme := range schemes.SchemeMap {
 		supported = append(supported, scheme)
 	}
 	c.JSON(http.StatusOK, gin.H{

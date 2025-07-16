@@ -2,9 +2,9 @@ package facilitator
 
 import (
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/big"
 	"net/http"
 	"strings"
@@ -40,8 +40,8 @@ func verifyHandler(c *gin.Context) {
 		VerifyExactEnvelope(c, &envelope)
 	case schemes.Scheme_Permit_USDC:
 		VerifyPermitEnvelope(c, &envelope)
-	case schemes.Scheme_Payer0:
-		VerifyPayer0Envelope(c, &envelope)
+	case schemes.Scheme_Payer0_toArbitrum, schemes.Scheme_Payer0_toBase, schemes.Scheme_Payer0M_toBase:
+		ParseAndVerifyPayer0(c, &envelope)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported Scheme " + envelope.PaymentPayload.Scheme})
 		c.Abort()
@@ -60,7 +60,7 @@ func VerifyExactEnvelope(c *gin.Context, envelope *all712.Envelope) {
 
 	response := types.VerifyResponse{}
 
-	amount, _, payer, asset, nonce, _, _, err := FormallyVerifyExactEnvelope(envelope)
+	parsedD, err := ParseAndVerifyExact(envelope)
 
 	if err != nil {
 		reason := err.Error()
@@ -69,24 +69,17 @@ func VerifyExactEnvelope(c *gin.Context, envelope *all712.Envelope) {
 		return
 	}
 
-	//Diagnostic blacklist
-	if payer.Hex() == TortugaOperator.Hex() {
-		reason := "Tortuga Operator has been blacklisted"
-		response.InvalidReason = &reason
-		c.JSON(http.StatusOK, response)
-		return
-	}
-
-	p := payer.Hex()
+	p := parsedD.Payer.Hex()
 	response.Payer = &p
 	// Checks on-chain
 	reason := ""
-	response.IsValid, reason = Verify3009OnChainConstraints(client, asset, payer, amount, nonce)
+	response.IsValid, reason = Verify3009OnChainConstraints(client, parsedD)
 	response.InvalidReason = &reason
 	c.JSON(http.StatusOK, response)
 }
 
-func FormallyVerifyExactEnvelope(envelope *all712.Envelope) (amount, chainID *big.Int, payer, asset common.Address, nonce [32]byte, validAfter, validBefore *big.Int, err error) {
+func ParseAndVerifyExact(envelope *all712.Envelope) (pd ParsedData, err error) {
+	pd = ParsedData{}
 	var ok bool
 	exactPayload := new(types.ExactEvmPayload)
 	err = json.Unmarshal(envelope.PaymentPayload.Payload, exactPayload)
@@ -95,7 +88,7 @@ func FormallyVerifyExactEnvelope(envelope *all712.Envelope) (amount, chainID *bi
 		return
 	}
 
-	amount, ok = new(big.Int).SetString(exactPayload.Authorization.Value, 10)
+	pd.Amount, ok = new(big.Int).SetString(exactPayload.Authorization.Value, 10)
 	if !ok {
 		err = fmt.Errorf("wrong value: %s", exactPayload.Authorization.Value)
 		return
@@ -106,34 +99,34 @@ func FormallyVerifyExactEnvelope(envelope *all712.Envelope) (amount, chainID *bi
 		err = fmt.Errorf("wrong MaxAmountRequired value: %s", envelope.PaymentRequirements.MaxAmountRequired)
 		return
 	}
-	if amount.Cmp(required) != 0 {
-		err = fmt.Errorf("authorized amount dirrefent from required: %v, %v", amount, required)
+	if pd.Amount.Cmp(required) != 0 {
+		err = fmt.Errorf("authorized amount dirrefent from required: %v, %v", pd.Amount, required)
 		return
 	}
 
-	validAfter, ok = new(big.Int).SetString(exactPayload.Authorization.ValidAfter, 10)
+	pd.ValidAfter, ok = new(big.Int).SetString(exactPayload.Authorization.ValidAfter, 10)
 	if !ok {
 		err = fmt.Errorf("wrong VelidAfter parameter: %s", exactPayload.Authorization.ValidAfter)
 		return
 	}
 
-	if time.Now().Unix() < validAfter.Int64() {
-		err = fmt.Errorf("authorization not valid yet: %v/%v", validAfter.Int64(), time.Now().Unix())
+	if time.Now().Unix() < pd.ValidAfter.Int64() {
+		err = fmt.Errorf("authorization not valid yet: %v/%v", pd.ValidAfter.Int64(), time.Now().Unix())
 		return
 	}
 
-	validBefore, ok = new(big.Int).SetString(exactPayload.Authorization.ValidBefore, 10)
+	pd.ValidBefore, ok = new(big.Int).SetString(exactPayload.Authorization.ValidBefore, 10)
 	if !ok {
 		err = fmt.Errorf("wrong VelidBefore parameter: %s", exactPayload.Authorization.ValidBefore)
 		return
 	}
-	if time.Now().Unix() > validBefore.Int64() {
-		err = fmt.Errorf("authorization expired: %v/%v", validBefore.Int64(), time.Now().Unix())
+	if time.Now().Unix() > pd.ValidBefore.Int64() {
+		err = fmt.Errorf("authorization expired: %v/%v", pd.ValidBefore.Int64(), time.Now().Unix())
 		return
 	}
 
-	asset = common.HexToAddress(envelope.PaymentRequirements.Asset)
-	chainID, ok = evmbinding.ChainIDs[envelope.PaymentPayload.Network]
+	pd.Asset = common.HexToAddress(envelope.PaymentRequirements.Asset)
+	pd.chainID, ok = evmbinding.ChainIDs[envelope.PaymentPayload.Network]
 	if !ok {
 		err = fmt.Errorf("unsupported network: %s", envelope.PaymentPayload.Network)
 		return
@@ -152,128 +145,22 @@ func FormallyVerifyExactEnvelope(envelope *all712.Envelope) (amount, chainID *bi
 		return
 	}
 
-	payer, err = signing.VerifyTransferWithAuthorizationSignature(
+	pd.Payer, pd.nonce, pd.signature, err = signing.VerifyTransferWithAuthorizationSignature(
 		exactPayload.Signature,
 		*exactPayload.Authorization,
 		einfo["name"], einfo["version"],
-		chainID, common.HexToAddress(envelope.PaymentRequirements.Asset))
+		pd.chainID, common.HexToAddress(envelope.PaymentRequirements.Asset))
 
 	if err != nil {
 		return
 	}
-	var noncesl []byte
-	noncesl, err = hex.DecodeString(strings.TrimPrefix(exactPayload.Authorization.Nonce, "0x"))
-	copy(nonce[:], noncesl)
 
 	return
-}
-
-func VerifyPermitEnvelope(c *gin.Context, envelope *all712.Envelope) {
-	clnt, exists := c.Get("client")
-	if !exists {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Client not found"})
-		c.Abort()
-		return
-	}
-	client := clnt.(*ethclient.Client)
-
-	response := types.VerifyResponse{}
-
-	permit, err := FormallyVerifyPermitEnvelope(envelope)
-	if err != nil {
-		reason := err.Error()
-		response.InvalidReason = &reason
-		c.JSON(http.StatusBadRequest, response)
-		return
-	}
-
-	p := permit.Message.Owner.Hex()
-	response.Payer = &p
-	// Checks on-chain
-
-	//check if nonce(s) is correct
-
-	balance, err := evmbinding.CheckTokenBalance(client, permit.Domain.VerifyingContract, permit.Message.Owner)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"Unable to check the balance": err})
-		return
-	}
-
-	if permit.Message.Value.Cmp(balance) == 1 {
-		reason := fmt.Sprintf("Insufficient balance: %v", balance)
-		response.InvalidReason = &reason
-		c.JSON(http.StatusOK, response)
-		return
-	}
-
-	response.IsValid = true
-	c.JSON(http.StatusOK, response)
-}
-
-func FormallyVerifyPermitEnvelope(envelope *all712.Envelope) (permit *all712.Permit, err error) {
-	var ok bool
-	permit = new(all712.Permit)
-	err = json.Unmarshal(envelope.PaymentPayload.Payload, permit)
-	if err != nil {
-		err = fmt.Errorf("error unmarshalling permit payload: %w", err)
-		return
-	}
-
-	//This may needa more systematic design
-	extraInfo := new(ExtraInfo)
-	err = json.Unmarshal(*envelope.PaymentRequirements.Extra, extraInfo)
-	if err != nil {
-		err = fmt.Errorf("error unmarshalling extra permit info")
-		return
-	}
-	eFacilitator, ok := (*extraInfo)["facilitator"]
-
-	if !ok || !strings.EqualFold(eFacilitator, keyfile.Address) {
-		err = fmt.Errorf("missing or wrong faclitator: %s", eFacilitator)
-		return
-	}
-
-	amount := permit.Message.Value
-	if amount == nil {
-		err = fmt.Errorf("nil value in permit message")
-		return
-	}
-
-	required, ok := new(big.Int).SetString(envelope.PaymentRequirements.MaxAmountRequired, 10)
-	if !ok {
-		err = fmt.Errorf("wrong MaxAmountRequired value: %s", envelope.PaymentRequirements.MaxAmountRequired)
-		return
-	}
-	if amount.Cmp(required) != 0 {
-		err = fmt.Errorf("authorized amount dirrefent from required: %v, %v", amount, required)
-		return
-	}
-
-	if time.Now().Unix() > permit.Message.Deadline.Int64() {
-		err = fmt.Errorf("authorization expired: %v/%v", permit.Message.Deadline.Uint64(), time.Now().Unix())
-		return
-	}
-
-	chainID, ok := evmbinding.ChainIDs[envelope.PaymentPayload.Network]
-	if !ok {
-		err = fmt.Errorf("unsupported network: %s", envelope.PaymentPayload.Network)
-		return
-
-	}
-
-	if chainID.Cmp(permit.Domain.ChainID) != 0 {
-		err = fmt.Errorf("ChainID mismatch: %v/%v", chainID, permit.Domain.ChainID)
-		return
-	}
-
-	_, err = signing.VerifyPermitSignature(permit)
-	return
-
 }
 
 var zeroPeer [32]byte
 
-func VerifyPayer0Envelope(c *gin.Context, envelope *all712.Envelope) {
+func ParseAndVerifyPayer0(c *gin.Context, envelope *all712.Envelope) {
 	clnt, exists := c.Get("client")
 	if !exists {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Client not found"})
@@ -285,17 +172,29 @@ func VerifyPayer0Envelope(c *gin.Context, envelope *all712.Envelope) {
 	response := types.VerifyResponse{}
 	response.InvalidReason = new(string)
 
-	amount, _, _, dstEid, payer, asset, nonce, _, _, err := FormallyVerifyPayer0Envelope(envelope)
+	pd, err := FormallyVerifyPayer0Envelope(envelope)
 	if err != nil {
 		*response.InvalidReason = err.Error()
 		c.JSON(http.StatusBadRequest, response)
 		return
 	}
 
-	p := payer.Hex()
+	markup, insignificant_err := evmbinding.GetMarkup(envelope.PaymentPayload.Network, envelope.PaymentRequirements.Asset, keyfile.Address)
+	if insignificant_err != nil {
+		log.Println(insignificant_err)
+	}
+
+	if pd.Amount.Cmp(markup) == -1 {
+		err = fmt.Errorf("Slippage margin error: %v/%v", pd.Amount, markup)
+		*response.InvalidReason = err.Error()
+		c.JSON(http.StatusBadRequest, response)
+		return
+	}
+
+	p := pd.Payer.Hex()
 	response.Payer = &p
 	// Checks on-chain
-	response.IsValid, *response.InvalidReason = Verify3009OnChainConstraints(client, asset, payer, amount, nonce)
+	response.IsValid, *response.InvalidReason = Verify3009OnChainConstraints(client, pd)
 
 	if !response.IsValid {
 		c.JSON(http.StatusBadRequest, response)
@@ -304,7 +203,7 @@ func VerifyPayer0Envelope(c *gin.Context, envelope *all712.Envelope) {
 	}
 
 	//TODO: Check if Peer exists
-	contract, err := oft.NewOft(asset, client)
+	contract, err := oft.NewOft(pd.Asset, client)
 	if err != nil {
 		*response.InvalidReason = fmt.Sprintf("failed to instantiate the contract: %v", err)
 		response.IsValid = false
@@ -315,7 +214,7 @@ func VerifyPayer0Envelope(c *gin.Context, envelope *all712.Envelope) {
 	callOpts := &bind.CallOpts{
 		Context: context.Background(),
 	}
-	peerAtDst, err := contract.Peers(callOpts, dstEid)
+	peerAtDst, err := contract.Peers(callOpts, pd.DstEid)
 	if err != nil {
 		*response.InvalidReason = fmt.Sprintf("error checking peers: %v", err)
 		response.IsValid = false
@@ -324,7 +223,7 @@ func VerifyPayer0Envelope(c *gin.Context, envelope *all712.Envelope) {
 		return
 	}
 	if peerAtDst == zeroPeer {
-		*response.InvalidReason = fmt.Sprintf("No peer at dest chain: %v", dstEid)
+		*response.InvalidReason = fmt.Sprintf("No peer at dest chain: %v ", pd.DstEid)
 		response.IsValid = false
 		c.JSON(http.StatusOK, response)
 		c.Abort()
@@ -335,9 +234,9 @@ func VerifyPayer0Envelope(c *gin.Context, envelope *all712.Envelope) {
 	c.JSON(http.StatusOK, response)
 }
 
-func FormallyVerifyPayer0Envelope(envelope *all712.Envelope) (amount, minAmount, chainID *big.Int, dstEid uint32, payer, asset common.Address, nonce [32]byte, vafter, vbefore *big.Int, err error) {
+func FormallyVerifyPayer0Envelope(envelope *all712.Envelope) (pd ParsedData, err error) {
 	//payer0 envelope is an extension of the "exact", so we can reuse some code
-	amount, chainID, payer, asset, nonce, vafter, vbefore, err = FormallyVerifyExactEnvelope(envelope)
+	pd, err = ParseAndVerifyExact(envelope)
 	if err != nil {
 		return
 	}
@@ -345,29 +244,23 @@ func FormallyVerifyPayer0Envelope(envelope *all712.Envelope) (amount, minAmount,
 	payer0Payload := new(all712.Payer03009Payload)
 	err = json.Unmarshal(envelope.PaymentPayload.Payload, payer0Payload)
 	if err != nil {
-		err = fmt.Errorf("error unmarshalling exact payload: %w", err)
+		err = fmt.Errorf("error unmarshalling Payer03009Payload: %w", err)
 		return
 	}
 
-	dstEid = payer0Payload.DestEid
-	if dstEid == 0 {
+	if payer0Payload.DestEid == 0 {
 		err = fmt.Errorf("Missing destination chain id")
 		return
 	}
-
-	minAmount = payer0Payload.MinAmmount
-	if amount.Cmp(minAmount) == 1 {
-		err = fmt.Errorf("Slippage margin error: %v/%v", amount, minAmount)
-		return
-	}
+	pd.DstEid = payer0Payload.DestEid
 
 	return
 }
 
-func Verify3009OnChainConstraints(client *ethclient.Client, asset, payer common.Address, amount *big.Int, nonce [32]byte) (ok bool, reason string) {
+func Verify3009OnChainConstraints(client *ethclient.Client, pd ParsedData) (ok bool, reason string) {
 
 	// Checks on-chain
-	known, err := evmbinding.CheckAuthorizationState(client, asset, payer, nonce)
+	known, err := evmbinding.CheckAuthorizationState(client, pd.Asset, pd.Payer, pd.nonce)
 	if known {
 		reason = "Nonce already used"
 		return
@@ -377,13 +270,13 @@ func Verify3009OnChainConstraints(client *ethclient.Client, asset, payer common.
 		return
 	}
 
-	balance, err := evmbinding.CheckTokenBalance(client, asset, payer)
+	balance, err := evmbinding.CheckTokenBalance(client, pd.Asset, pd.Payer)
 	if err != nil {
 		reason = fmt.Sprintf("Unable to check the balance: %v", err)
 		return
 	}
 
-	if amount.Cmp(balance) == 1 {
+	if pd.Amount.Cmp(balance) == 1 {
 		reason = fmt.Sprintf("Insufficient balance: %v", balance)
 		return
 	}

@@ -169,29 +169,33 @@ func VerifyTransferWithAuthorizationSignature(
 	version string,
 	chainID *big.Int,
 	tokenAddress common.Address,
-) (common.Address, error) {
+) (recovered common.Address, nonce [32]byte, signature []byte, err error) {
 
 	// Hash type: keccak256("TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)")
 
 	value, ok := new(big.Int).SetString(auth.Value, 10)
 	if !ok {
-		return common.Address{}, errors.New("Invalid Value")
+		err = errors.New("Invalid Value")
+		return
 	}
 	after, ok := new(big.Int).SetString(auth.ValidAfter, 10)
 	if !ok {
-		return common.Address{}, errors.New("Invalid After")
+		err = errors.New("Invalid After")
+		return
 	}
 	before, ok := new(big.Int).SetString(auth.ValidBefore, 10)
 	if !ok {
-		return common.Address{}, errors.New("Invalid Before")
+		err = errors.New("Invalid Before")
+		return
 	}
 
 	nonce_s, err := hex.DecodeString(strings.TrimPrefix(auth.Nonce, "0x"))
 	if err != nil {
-		return common.Address{}, errors.New("Invalid nonce")
+		err = errors.New("Invalid nonce")
+		return
 	}
-	var nonce_h [32]byte
-	copy(nonce_h[:], nonce_s)
+
+	copy(nonce[:], nonce_s)
 
 	digest, err := all712.EIP712TransferHash(
 		common.HexToAddress(auth.From),
@@ -201,41 +205,47 @@ func VerifyTransferWithAuthorizationSignature(
 		after,
 		before,
 		chainID,
-		nonce_h,
+		nonce,
 		name,
 		version,
 	)
 	if err != nil {
-		return common.Address{}, err
+		return
 	}
 
 	// Decode signature
-	sig, err := hex.DecodeString(strings.TrimPrefix(signatureHex, "0x"))
+	signature, err = hex.DecodeString(strings.TrimPrefix(signatureHex, "0x"))
 	if err != nil {
-		return common.Address{}, err
+		err = fmt.Errorf("error decoding signature: %w", err)
+		return
 	}
-	if len(sig) != 65 {
-		return common.Address{}, fmt.Errorf("invalid signature length")
+	if len(signature) != 65 {
+		err = fmt.Errorf("invalid signature length: %v", len(signature))
+		return
 	}
+
+	adjustedSignature := make([]byte, 65)
+	copy(adjustedSignature, signature)
 
 	// Adjust V if needed
-	if sig[64] >= 27 {
-		sig[64] -= 27
+	if adjustedSignature[64] >= 27 {
+		adjustedSignature[64] -= 27
 	}
 
-	pubKey, err := crypto.SigToPub(digest, sig)
+	pubKey, err := crypto.SigToPub(digest, adjustedSignature)
 	if err != nil {
-		return common.Address{}, err
+		return
 	}
-	recoveredAddr := crypto.PubkeyToAddress(*pubKey)
+	recovered = crypto.PubkeyToAddress(*pubKey)
 
 	// Compare recovered address with `from`
-	isValid := strings.Compare(strings.ToLower(recoveredAddr.Hex()), strings.ToLower(auth.From)) == 0
-	log.Println("Recovered:", recoveredAddr)
+	isValid := strings.Compare(strings.ToLower(recovered.Hex()), strings.ToLower(auth.From)) == 0
+	log.Println("Recovered:", recovered)
 	log.Println("From:", auth.From)
 	if !isValid {
-		return recoveredAddr, fmt.Errorf("Recovered address differ: %s expected %s", recoveredAddr, auth.From)
+		err = fmt.Errorf("Recovered address differ: %s expected %s", recovered, auth.From)
+		return
 	}
 
-	return recoveredAddr, nil
+	return
 }

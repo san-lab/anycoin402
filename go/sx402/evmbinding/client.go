@@ -31,7 +31,7 @@ var rpcEndpoints = map[string]string{
 	Amoy:             "https://rpc-amoy.polygon.technology/",
 	Holesky:          "https://ethereum-holesky.publicnode.com",
 	ZkSync_sepolia:   "https://sepolia.era.zksync.dev",
-	Arbitrum_sepolia: "https://arbitrum-sepolia.gateway.tenderly.co",
+	Arbitrum_sepolia: "https://sepolia-rollup.arbitrum.io/rpc", // "https://arbitrum-sepolia.gateway.tenderly.co",
 	OP_Sepolia:       "https://optimism-sepolia.gateway.tenderly.co",
 }
 

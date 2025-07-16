@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/coinbase/x402/go/pkg/types"
 	"github.com/gin-gonic/gin"
@@ -51,7 +52,32 @@ func X402Middleware(c *gin.Context) {
 
 	addRequirement(schemes.Scheme_Exact_EURS, evmbinding.Base_sepolia, resourceURI, price, &accepts)
 	addRequirement(schemes.Scheme_Exact_EURS, evmbinding.Arbitrum_sepolia, resourceURI, price, &accepts)
-	addRequirement(schemes.Scheme_Payer0, evmbinding.Base_sepolia, resourceURI, price, &accepts)
+	addRequirement(schemes.Scheme_Payer0_toArbitrum, evmbinding.Base_sepolia, resourceURI, price, &accepts)
+	addRequirement(schemes.Scheme_Payer0_toBase, evmbinding.Arbitrum_sepolia, resourceURI, price, &accepts)
+
+	//try to get markup
+	priceWithMarkupi := europrice
+	markup := 0
+	markupQuery := fmt.Sprintf("%s/markup?scheme=%s&network=%s", facilitatorURI, schemes.Scheme_Payer0M_toBase, evmbinding.Arbitrum_sepolia)
+	resp, err := http.Get(markupQuery)
+	if err != nil {
+		log.Println(err)
+	} else {
+		var result MarkupResponse
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			fmt.Println(err)
+		} else {
+			markup, err = strconv.Atoi(result.Markup)
+			if err != nil {
+				log.Println(err)
+			}
+		}
+		priceWithMarkupi += markup
+
+	}
+	priceWithMarkup := fmt.Sprintf("%v", priceWithMarkupi)
+
+	addRequirement(schemes.Scheme_Payer0M_toBase, evmbinding.Arbitrum_sepolia, resourceURI, priceWithMarkup, &accepts)
 
 	if paymentHeader == "" {
 
@@ -113,7 +139,7 @@ func X402Middleware(c *gin.Context) {
 		c.Set("settleReponse", settleResponse)
 		c.Set("network", headerPayload.Network)
 		explorer := evmbinding.ExplorerURLs[headerPayload.Network]
-		if headerPayload.Scheme == "payer0" {
+		if strings.HasPrefix(headerPayload.Scheme, "payer0") {
 			explorer = "https://testnet.layerzeroscan.com/"
 		}
 		c.Set("explorer", explorer)
@@ -201,4 +227,8 @@ func addRequirement(scheme_name, network, resourceURI, price string, accepts *[]
 		*accepts = append(*accepts, scheme.Requirement(resourceURI, price, store_wallet))
 	}
 	return true
+}
+
+type MarkupResponse struct {
+	Markup string `json:"markup"`
 }

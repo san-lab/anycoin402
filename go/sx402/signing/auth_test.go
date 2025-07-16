@@ -44,7 +44,7 @@ func TestAuth(t *testing.T) {
 		t.Error(err)
 	}
 
-	addr, err := VerifyTransferWithAuthorizationSignature(ea.Signature, *ea.Authorization, USDCName, "2", sepoliaChainId, common.HexToAddress(USDCOnBaseSepolia))
+	addr, _, _, err := VerifyTransferWithAuthorizationSignature(ea.Signature, *ea.Authorization, USDCName, "2", sepoliaChainId, common.HexToAddress(USDCOnBaseSepolia))
 	log.Println(err)
 	log.Println(addr)
 

@@ -6,24 +6,28 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/san-lab/sx402/evmbinding"
+	"github.com/san-lab/sx402/schemes"
 )
 
-type PermitNonceQuery struct {
+type MarkupQuery struct {
 	Network string `form:"network" binding:"required"`
-	Asset   string `form:"asset" binding:"required"`
-	Owner   string `form:"owner" binding:"required"`
+	Scheme  string `form:"scheme" binding:"required"`
 }
 
-var clients = evmbinding.InitClients()
-
-func permitNonceHandler(c *gin.Context) {
-	var query PermitNonceQuery
+func getMarkup(c *gin.Context) {
+	var query MarkupQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	nonce, err := evmbinding.PermitNonce(query.Network, query.Asset, query.Owner)
+	scheme, err := schemes.GetScheme(query.Scheme, query.Network)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "scheme/network pair not found"})
+		return
+	}
+
+	markup, err := evmbinding.GetMarkup(query.Network, scheme.Asset, keyfile.Address)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("failed to get nonce: %v", err),
@@ -33,8 +37,7 @@ func permitNonceHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"network": query.Network,
-		"asset":   query.Asset,
-		"owner":   query.Owner,
-		"nonce":   nonce.String(),
+		"scheme":  query.Scheme,
+		"markup":  markup.String(),
 	})
 }
