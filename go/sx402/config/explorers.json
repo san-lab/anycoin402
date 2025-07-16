@@ -1,0 +1,9 @@
+{
+  "base-sepolia": "https://sepolia.basescan.org",
+  "sepolia": "https://sepolia.etherscan.io",
+  "amoy": "https://amoy.polygonscan.com",
+  "holesky": "https://holesky.etherscan.io",
+  "zksync-sepolia": "https://sepolia-era.zksync.network/",
+  "arbitrum-sepolia": "https://sepolia.arbiscan.io",
+  "op-sepolia": "https://sepolia-optimism.etherscan.io/"
+}

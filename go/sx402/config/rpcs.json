@@ -1,0 +1,9 @@
+{
+  "base-sepolia": "https://sepolia.base.org",
+  "sepolia": "https://ethereum-sepolia-rpc.publicnode.com",
+  "amoy": "https://rpc-amoy.polygon.technology/",
+  "holesky": "https://ethereum-holesky.publicnode.com",
+  "zksync-sepolia": "https://sepolia.era.zksync.dev",
+  "arbitrum-sepolia": "https://sepolia-rollup.arbitrum.io/rpc",
+  "op-sepolia": "https://optimism-sepolia.gateway.tenderly.co"
+}

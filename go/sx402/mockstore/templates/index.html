@@ -56,6 +56,10 @@
 
   <button id="connectButton">Connect to MetaMask</button>
   <p id="walletAddress" style="margin-top: 8px;"></p>
+  <label>
+  <input type="checkbox" id="encodeCheckbox" checked>
+  Encode header
+</label>
 
   <div id="errorModal">
     <div id="modalContent">
@@ -191,12 +195,18 @@
 }
 
   try {
-    const response = await fetch(currentHref, {
-      method: 'GET',
-      headers: {
-        'X-Payment': JSON.stringify(xPaymentHeader)
-      }
-    });
+    const encodeHeader = document.getElementById('encodeCheckbox').checked;
+const headerValue = encodeHeader
+  ? btoa(JSON.stringify(xPaymentHeader))
+  : JSON.stringify(xPaymentHeader);
+
+const response = await fetch(currentHref, {
+  method: 'GET',
+  headers: {
+    'X-Payment': headerValue
+  }
+});
+
 
     if (response.ok) {
       const html = await response.text();

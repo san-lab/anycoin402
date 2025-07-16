@@ -2,6 +2,7 @@ package store
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -92,9 +93,10 @@ func X402Middleware(c *gin.Context) {
 	}
 
 	var env = new(all712.Envelope)
-	headerPayload := new(all712.PaymentPayload)
-	if err := json.Unmarshal([]byte(paymentHeader), &headerPayload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Bad X-Payment header"})
+	headerPayload, err := unmarshallXPaymentHeader(paymentHeader)
+	if err != nil {
+		c.JSON(
+			http.StatusBadRequest, gin.H{"error": "Bad X-Payment header", "details": err})
 		c.Abort()
 		return
 	}
@@ -231,4 +233,20 @@ func addRequirement(scheme_name, network, resourceURI, price string, accepts *[]
 
 type MarkupResponse struct {
 	Markup string `json:"markup"`
+}
+
+func unmarshallXPaymentHeader(header string) (ppld *all712.PaymentPayload, err error) {
+	ppld = new(all712.PaymentPayload)
+	var headerbts []byte
+	if !strings.Contains(header, "{") { //Not pure json, let us try base64
+		headerbts, err = base64.StdEncoding.DecodeString(header)
+		if err != nil {
+			err = fmt.Errorf("wrong X-Payment header: %s", header)
+			return
+		}
+	} else {
+		headerbts = []byte(header)
+	}
+	err = json.Unmarshal(headerbts, ppld)
+	return
 }

@@ -3,9 +3,13 @@ package evmbinding
 import (
 	"context"
 	"crypto/ecdsa"
+	"encoding/json"
 	"fmt"
 	"log"
+	"maps"
 	"math/big"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -43,6 +47,37 @@ var ExplorerURLs = map[string]string{
 	ZkSync_sepolia:   "https://sepolia-era.zksync.network/",
 	Arbitrum_sepolia: "https://sepolia.arbiscan.io",
 	OP_Sepolia:       "https://sepolia-optimism.etherscan.io/",
+}
+
+func init() {
+	LoadConfigs()
+}
+
+func LoadConfigs() {
+	log.Println(LoadOverrides("config/rpcs.json", rpcEndpoints))
+	log.Println(LoadOverrides("config/explorers.json", rpcEndpoints))
+}
+
+func LoadOverrides(relativePath string, targetMap map[string]string) error {
+	// Absolute path from the working directory (project root)
+	absPath, err := filepath.Abs(relativePath)
+	if err != nil {
+		return fmt.Errorf("could not resolve path: %w", err)
+	}
+
+	data, err := os.ReadFile(absPath)
+	if err != nil {
+		return fmt.Errorf("could not read file %s: %w", absPath, err)
+	}
+
+	var overrides map[string]string
+	if err := json.Unmarshal(data, &overrides); err != nil {
+		return fmt.Errorf("invalid JSON in %s: %w", absPath, err)
+	}
+
+	maps.Copy(targetMap, overrides)
+
+	return nil
 }
 
 var ChainIDs = map[string]*big.Int{
