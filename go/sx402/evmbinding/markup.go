@@ -32,9 +32,11 @@ const markupABI = `[{
 }]`
 
 func GetMarkup(network, asset, facilitator string) (markup *big.Int, err error) {
+	markup = big.NewInt(0)
 	client, err := GetClientByNetwork(network)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to rpc: %w", err)
+		err = fmt.Errorf("failed to connect to rpc: %w", err)
+		return
 	}
 	defer client.Close()
 
@@ -45,7 +47,8 @@ func GetMarkup(network, asset, facilitator string) (markup *big.Int, err error) 
 
 	parsedABI, err := abi.JSON(strings.NewReader(markupABI))
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse ABI: %w", err)
+		err = fmt.Errorf("failed to parse ABI: %w", err)
+		return
 	}
 
 	data, err := parsedABI.Pack("markups", facAddress)
@@ -62,16 +65,18 @@ func GetMarkup(network, asset, facilitator string) (markup *big.Int, err error) 
 	ctx := context.Background()
 	output, err := client.CallContract(ctx, callMsg, nil)
 	if err != nil {
-		return nil, fmt.Errorf("contract call failed: %w", err)
+		err = fmt.Errorf("contract call failed: %w", err)
+		return
 	}
 
 	// unpack output (uint256 nonce)
-	markup = big.NewInt(0)
+
 	err = parsedABI.UnpackIntoInterface(&markup, "markups", output)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unpack output: %w", err)
+		err = fmt.Errorf("failed to unpack output: %w", err)
+		return
 	}
 
-	return markup, nil
+	return
 
 }
