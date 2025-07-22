@@ -24,7 +24,8 @@ When a resource requires payment, the server responds with HTTP 402 and a JSON b
       "extra": {
         "name": "<name>",
         "version": "<version>",
-        "dstEid": 40265
+        "dstEid": "40265",
+        "minAmount": "<minAmount>"
       }
     }
   ],
