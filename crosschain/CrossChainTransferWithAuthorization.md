@@ -19,7 +19,7 @@ struct CrossChainTransferWithAuthorization {
   address to;
   uint256 amount;
   uint256 minimalAmount;
-  uint16 destinationChain;
+  uint256 destinationChain;
   uint256 validAfter;
   uint256 validBefore;
   bytes32 nonce;
@@ -36,7 +36,7 @@ CrossChainTransferWithAuthorization(
   address to,
   uint256 amount,
   uint256 minimalAmount,
-  uint16 destinationChain,
+  uint256 destinationChain,
   uint256 validAfter,
   uint256 validBefore,
   bytes32 nonce
@@ -49,7 +49,7 @@ CrossChainTransferWithAuthorization(
 
 ```solidity
 bytes32 constant CROSS_CHAIN_TRANSFER_WITH_AUTHORIZATION_TYPEHASH = keccak256(
-  "CrossChainTransferWithAuthorization(address from,address to,uint256 amount,uint256 minimalAmount,uint16 destinationChain,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
+  "CrossChainTransferWithAuthorization(address from,address to,uint256 amount,uint256 minimalAmount,uint256 destinationChain,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
 );
 ```
 
