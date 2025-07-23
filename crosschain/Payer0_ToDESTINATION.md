@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `payer0_ToDESTINATION` scheme extends the x402 exact payment scheme to support **cross-chain token transfers**. It enables clients to authorize a token transfer on the source chain with a guarantee that a **minimal amount** arrives on a specified **destination chain**.
+The `payer0_ToDESTINATION` scheme extends the x402 exact payment scheme to support **cross-chain token transfers**. It enables clients to authorize a token transfer on the source chain with a guarantee that a **minimal amount** arrives on a specified **destination chain**. The difference between the **maxAmountRequired** and the **minAmount** can be interpreted as the **facilitator's** mark-up. As the mark-up is likely to be semi-stable, it has been chosen to put **maxMarkup** as an extra parameter in the **scheme**.  
 
 ---
 
@@ -25,7 +25,7 @@ When a resource requires payment, the server responds with HTTP 402 and a JSON b
         "name": "<name>",
         "version": "<version>",
         "dstEid": "40265",
-        "minAmount": "<minAmount>"
+        "maxMarkup": "<maxMarkup>"
       }
     }
   ],
@@ -36,9 +36,11 @@ When a resource requires payment, the server responds with HTTP 402 and a JSON b
 
 scheme: MUST be "payer0_ToDESTINATION" for this cross-chain scheme.
 
-asset, network, maxAmountRequired, payTo: as per exact scheme, defining what, where, and how much.
+asset, network, payTo: as per **exact** scheme, defining what, where, and how much.
 
 extra.dstEid: mandatory numeric destination chain ID where tokens must be received.
+
+The scheme guarantees that not more than **maxAmountRequired** will be charged, and at least **maxAmountRequired - maxMarkup** will be delivered to the destination (unless the transaction is reverted).
 
 PaymentPayload
 Clients respond with a JSON payload in the X-Payment header that encodes a signed CrossChainTransferAuthorization message:
