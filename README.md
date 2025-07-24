@@ -2,6 +2,10 @@
 
 This project is a **Go-based implementation of an x402 payment facilitator**. Its primary purpose is to provide a flexible platform for experimenting with and extending the x402 protocol beyond its initial scope—focusing on diverse token support, multi-chain environments, and advanced cross-chain payment scenarios.
 
+![Architecture diagram](./archdiag.png)
+
+*Figure 1: Waht is in the box
+
 ---
 
 ## 💡 What is x402?
