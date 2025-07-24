@@ -1,10 +1,10 @@
-# 🌊 Go-x402 Facilitator
+# 🌊 Anycoin402 Facilitator
 
-This project is a **Go-based implementation of an x402 payment facilitator**. Its primary purpose is to provide a flexible platform for experimenting with and extending the x402 protocol beyond its initial scope—focusing on diverse token support, multi-chain environments, and advanced cross-chain payment scenarios.
+This project is a **Go-based implementation of an x402 payment facilitator**. Its purpose is to provide a simple platform for experimenting with and extending the x402 protocol beyond its initial scope—focusing on diverse token support, multi-chain environments, and advanced cross-chain payment scenarios.
 
 ![Architecture diagram](./archdiag.png)
 
-*Figure 1: Waht is in the box
+\*Figure 1: Waht is in the box
 
 ---
 
@@ -33,7 +33,7 @@ The core idea is to **facilitate internet-native payments** for resources like A
 
 ## 🎯 Purpose of This Project
 
-While the x402 protocol provides a powerful new paradigm, early implementations are often narrow in scope (e.g., limited to USDC or Ethereum). The **Go-x402 Facilitator** project aims to expand and test the boundaries of x402 through:
+While the x402 protocol provides a powerful new paradigm, early implementations are often narrow in scope (e.g., limited to USDC or ase). The **Anycoin402 Facilitator** project aims to expand and test the boundaries of x402 through:
 
 ### ✅ Objectives
 
@@ -60,8 +60,9 @@ By building a **flexible, Go-based** implementation, this project helps deepen u
 - **[EIP-3009](https://eips.ethereum.org/EIPS/eip-3009)** – `transferWithAuthorization`  
   Enables off-chain token approvals for on-chain transfers.
 
-- **[LayerZero OFT](https://layerzero.network)** – *Omnichain Fungible Token*  
+- **[LayerZero OFT](https://layerzero.network)** – _Omnichain Fungible Token_  
   Allows fungible tokens to move across blockchains while maintaining a unified supply.
 
----
+- \*\* - tbc...
 
+---
