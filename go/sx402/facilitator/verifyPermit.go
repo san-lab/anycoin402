@@ -58,9 +58,9 @@ func VerifyPermitEnvelope(c *gin.Context, envelope *all712.Envelope) {
 	c.JSON(http.StatusOK, response)
 }
 
-func FormallyVerifyPermitEnvelope(envelope *all712.Envelope) (permit *all712.Permit, err error) {
+func FormallyVerifyPermitEnvelope(envelope *all712.Envelope) (permit *all712.PermitMessage, err error) {
 	var ok bool
-	permit = new(all712.Permit)
+	permit = new(all712.PermitMessage)
 	err = json.Unmarshal(envelope.PaymentPayload.Payload, permit)
 	if err != nil {
 		err = fmt.Errorf("error unmarshalling permit payload: %w", err)
@@ -124,8 +124,6 @@ type PermitNonceQuery struct {
 	Asset   string `form:"asset" binding:"required"`
 	Owner   string `form:"owner" binding:"required"`
 }
-
-var clients = evmbinding.InitClients()
 
 func permitNonceHandler(c *gin.Context) {
 	var query PermitNonceQuery

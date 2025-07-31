@@ -41,7 +41,9 @@ func verifyHandler(c *gin.Context) {
 	case schemes.Scheme_Permit_USDC:
 		VerifyPermitEnvelope(c, &envelope)
 	case schemes.Scheme_Payer0_toArbitrum, schemes.Scheme_Payer0_toBase, schemes.Scheme_Payer0M_toBase:
-		ParseAndVerifyPayer0(c, &envelope)
+		VerifyPayer0Envelope(c, &envelope)
+	case schemes.Scheme_Payer0Plus_toBase, schemes.Scheme_Payer0Plus_toArbitrum, schemes.Scheme_Payer0Plus_toAmoy, schemes.Scheme_Payer0Plus_toOP:
+		VerifyCrossChainScheme(c, &envelope)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported Scheme " + envelope.PaymentPayload.Scheme})
 		c.Abort()
@@ -59,13 +61,13 @@ func VerifyExactEnvelope(c *gin.Context, envelope *all712.Envelope) {
 	client := clnt.(*ethclient.Client)
 
 	response := types.VerifyResponse{}
+	response.InvalidReason = new(string)
 
 	parsedD, err := ParseAndVerifyExact(envelope)
 
 	if err != nil {
-		reason := err.Error()
-		response.InvalidReason = &reason
-		c.JSON(http.StatusBadRequest, response)
+		*response.InvalidReason = err.Error()
+		c.JSON(http.StatusOK, response)
 		return
 	}
 
@@ -160,7 +162,7 @@ func ParseAndVerifyExact(envelope *all712.Envelope) (pd ParsedData, err error) {
 
 var zeroPeer [32]byte
 
-func ParseAndVerifyPayer0(c *gin.Context, envelope *all712.Envelope) {
+func VerifyPayer0Envelope(c *gin.Context, envelope *all712.Envelope) {
 	clnt, exists := c.Get("client")
 	if !exists {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Client not found"})
@@ -175,7 +177,7 @@ func ParseAndVerifyPayer0(c *gin.Context, envelope *all712.Envelope) {
 	pd, err := FormallyVerifyPayer0Envelope(envelope)
 	if err != nil {
 		*response.InvalidReason = err.Error()
-		c.JSON(http.StatusBadRequest, response)
+		c.JSON(http.StatusOK, response)
 		return
 	}
 
@@ -187,7 +189,7 @@ func ParseAndVerifyPayer0(c *gin.Context, envelope *all712.Envelope) {
 	if pd.Amount.Cmp(markup) == -1 {
 		err = fmt.Errorf("Slippage margin error: %v/%v", pd.Amount, markup)
 		*response.InvalidReason = err.Error()
-		c.JSON(http.StatusBadRequest, response)
+		c.JSON(http.StatusOK, response)
 		return
 	}
 
@@ -197,7 +199,7 @@ func ParseAndVerifyPayer0(c *gin.Context, envelope *all712.Envelope) {
 	response.IsValid, *response.InvalidReason = Verify3009OnChainConstraints(client, pd)
 
 	if !response.IsValid {
-		c.JSON(http.StatusBadRequest, response)
+		c.JSON(http.StatusOK, response)
 		c.Abort()
 		return
 	}
@@ -207,7 +209,7 @@ func ParseAndVerifyPayer0(c *gin.Context, envelope *all712.Envelope) {
 	if err != nil {
 		*response.InvalidReason = fmt.Sprintf("failed to instantiate the contract: %v", err)
 		response.IsValid = false
-		c.JSON(http.StatusBadRequest, response)
+		c.JSON(http.StatusOK, response)
 		c.Abort()
 		return
 	}
@@ -218,7 +220,7 @@ func ParseAndVerifyPayer0(c *gin.Context, envelope *all712.Envelope) {
 	if err != nil {
 		*response.InvalidReason = fmt.Sprintf("error checking peers: %v", err)
 		response.IsValid = false
-		c.JSON(http.StatusBadRequest, response)
+		c.JSON(http.StatusOK, response)
 		c.Abort()
 		return
 	}

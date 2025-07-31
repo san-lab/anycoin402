@@ -26,7 +26,7 @@ import (
 	"github.com/san-lab/sx402/state"
 )
 
-var keyfile_name = "0xfAc178B1C359D41e9162A1A6385380de96809048.json"
+var keyfile_name = "facilitator.json"
 
 func InitKeys(password []byte) error {
 	kf, err := kms.ReadKeyfile(keyfile_name)
@@ -71,8 +71,16 @@ func SettleHandler(c *gin.Context) {
 		SettlePermitScheme(c, &envelope)
 	case schemes.Scheme_Payer0_toArbitrum, schemes.Scheme_Payer0_toBase, schemes.Scheme_Payer0M_toBase:
 		SettlePayerZero(c, &envelope)
+	case schemes.Scheme_Payer0Plus_toBase, schemes.Scheme_Payer0Plus_toArbitrum:
+		SettleCrossChainScheme(c, &envelope)
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported Scheme " + envelope.PaymentPayload.Scheme})
+		response := types.SettleResponse{}
+		response.Network = envelope.PaymentPayload.Network
+		response.Payer = &envelope.PaymentRequirements.PayTo
+		response.Success = false
+		reason := "Unsupported Scheme: " + envelope.PaymentPayload.Scheme
+		response.ErrorReason = &reason
+		c.JSON(http.StatusOK, response)
 		c.Abort()
 		return
 	}
@@ -137,14 +145,17 @@ func SettleExactScheme(c *gin.Context, envelope *all712.Envelope) {
 	}
 
 	// Convert nonce (hex string to [32]byte)
-	nonceBytes, err := hex.DecodeString(strings.TrimPrefix(exactPayload.Authorization.Nonce, "0x"))
-	if err != nil || len(nonceBytes) != 32 {
-		reason := "error: Invalid nonce"
-		response.ErrorReason = &reason
-		c.JSON(http.StatusBadRequest, response)
-		return
-	}
-	copy(nonce[:], nonceBytes)
+	/*
+		nonceBytes, err := hex.DecodeString(strings.TrimPrefix(exactPayload.Authorization.Nonce, "0x"))
+		if err != nil || len(nonceBytes) != 32 {
+			reason := "error: Invalid nonce"
+			response.ErrorReason = &reason
+			c.JSON(http.StatusBadRequest, response)
+			return
+		}
+		copy(nonce[:], nonceBytes)
+	*/
+	nonce = common.HexToHash(exactPayload.Authorization.Nonce)
 
 	// Convert r, s (hex strings to []byte)
 	sig, err := hex.DecodeString(strings.TrimPrefix(exactPayload.Signature, "0x"))
@@ -185,7 +196,7 @@ func SettleExactScheme(c *gin.Context, envelope *all712.Envelope) {
 func SettlePermitScheme(c *gin.Context, envelope *all712.Envelope) {
 	//reuse the exact one for now
 	response := types.SettleResponse{}
-	permit := new(all712.Permit)
+	permit := new(all712.PermitMessage)
 	err := json.Unmarshal(envelope.PaymentPayload.Payload, permit)
 	if err != nil {
 		response.Success = false
@@ -255,7 +266,7 @@ func SettlePayerZero(c *gin.Context, envelope *all712.Envelope) {
 	sendParam.ExtraOptions = []byte{0, 3}
 	sendParam.To = [32]byte(common.LeftPadBytes(payto, 32))
 	sendParam.DstEid = pd.DstEid
-	sendParam.OftCmd = []byte{}
+	sendParam.ComposeMsg = []byte{}
 	sendParam.OftCmd = []byte{}
 
 	p0token, err := oft.NewOft(pd.Asset, client)

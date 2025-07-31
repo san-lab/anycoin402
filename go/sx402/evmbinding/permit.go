@@ -46,7 +46,7 @@ const permitABI = `[
   }
 ]`
 
-func EnactPermit(permit *all712.Permit, facilKey *ecdsa.PrivateKey) (*common.Hash, error) {
+func EnactPermit(permit *all712.PermitMessage, facilKey *ecdsa.PrivateKey) (*common.Hash, error) {
 	client, err := GetlientByChainID(permit.Domain.ChainID)
 
 	parsedABI, err := abi.JSON(strings.NewReader(permitABI))

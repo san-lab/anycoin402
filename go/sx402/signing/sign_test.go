@@ -82,7 +82,7 @@ func TestAddSignature(t *testing.T) {
 		t.Error(err)
 	}
 
-	ppld, err := AddAuthorizationSignature(preq, privkey)
+	ppld, err := CreateAuthorizationWithSignature(preq, privkey)
 	if err != nil {
 		t.Error(err)
 	}

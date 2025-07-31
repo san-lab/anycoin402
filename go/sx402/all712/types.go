@@ -49,14 +49,14 @@ type PaymentPayload struct {
 	Payload     json.RawMessage `json:"payload"`
 }
 
-type Permit struct {
-	Domain    Domain        `json:"domain"`
-	Message   PermitMessage `json:"message"`
-	Nonce     *big.Int      `json:"nonce"`
-	Signature string        `json:"signature,omitempty"`
+type PermitMessage struct {
+	Domain    Domain       `json:"domain"`
+	Message   ActualPermit `json:"message"`
+	Nonce     *big.Int     `json:"nonce"`
+	Signature string       `json:"signature,omitempty"`
 }
 
-type PermitMessage struct {
+type ActualPermit struct {
 	Owner    common.Address `json:"owner"`
 	Spender  common.Address `json:"spender"`
 	Value    *big.Int       `json:"value"`
@@ -70,7 +70,7 @@ type Domain struct {
 	VerifyingContract common.Address `json:"verifyingContract,omitempty"`
 }
 
-func (permit *Permit) Digest() ([]byte, error) {
+func (permit *PermitMessage) Digest() ([]byte, error) {
 	return EIP712PermitHash(
 		permit.Message.Owner,
 		permit.Message.Spender,
@@ -89,4 +89,39 @@ type Payer03009Payload struct {
 	Authorization *types.ExactEvmPayloadAuthorization `json:"authorization"`
 	DestEid       uint32                              `json:"dstEid"` // LayerZero hain ID
 	MinAmmount    *big.Int                            `json:"minAmount"`
+}
+
+type CrossChainTransferMessage struct { // this follows the Permit message design
+	Domain        *Domain                          `json:"domain"`
+	Authorization *CrossChainTransferAuthorization `json:"authorization"`
+	Signature     string                           `json:"signature,omitempty"`
+}
+
+type CrossChainTransferAuthorization struct {
+	From             common.Address `json:"from"`
+	To               common.Address `json:"to"`
+	Amount           *big.Int       `json:"amount"`
+	MinimalAmount    *big.Int       `json:"minimalAmount"`
+	DestinationChain *big.Int       `json:"destinationChain"`
+	ValidAfter       *big.Int       `json:"validAfter"`
+	ValidBefore      *big.Int       `json:"validBefore"`
+	Nonce            string         `json:"nonce"` //assumed hex
+}
+
+func (ccam *CrossChainTransferMessage) Digest() ([]byte, error) {
+	var nonce32 = common.HexToHash(ccam.Authorization.Nonce)
+	return CrossChainTransferAuthorizationHash(
+		ccam.Authorization.From,
+		ccam.Authorization.To,
+		ccam.Domain.VerifyingContract,
+		ccam.Authorization.Amount,
+		ccam.Authorization.MinimalAmount,
+		ccam.Authorization.ValidAfter,
+		ccam.Authorization.ValidBefore,
+		ccam.Domain.ChainID,
+		ccam.Authorization.DestinationChain,
+		nonce32,
+		ccam.Domain.Name,
+		ccam.Domain.Version,
+	)
 }

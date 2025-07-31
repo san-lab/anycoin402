@@ -58,7 +58,7 @@ func SignERC3009Authorization(
 	var nonce [32]byte
 	copy(nonce[:], snonce)
 
-	digest, err := all712.EIP712TransferHash(from, to, tokenAddress, value, validAfter, validBefore, chainID, nonce, tokenName, tokenVersion)
+	digest, err := all712.EIP3009TransferHash(from, to, tokenAddress, value, validAfter, validBefore, chainID, nonce, tokenName, tokenVersion)
 
 	// --- Sign ---
 	signature, err := crypto.Sign(digest, privateKey)
@@ -71,7 +71,7 @@ func SignERC3009Authorization(
 	return signature, nil
 }
 
-func AddAuthorizationSignature(paymentReqs *types.PaymentRequirements, from_key *ecdsa.PrivateKey) (*types.PaymentPayload, error) {
+func CreateAuthorizationWithSignature(paymentReqs *types.PaymentRequirements, from_key *ecdsa.PrivateKey) (*types.PaymentPayload, error) {
 	from := crypto.PubkeyToAddress(from_key.PublicKey)
 
 	ppld := new(types.PaymentPayload)
@@ -112,7 +112,7 @@ func AddAuthorizationSignature(paymentReqs *types.PaymentRequirements, from_key 
 	return ppld, nil
 }
 
-func SignEIP2612Permit(permit *all712.Permit, privateKey *ecdsa.PrivateKey) ([]byte, error) {
+func SignEIP2612Permit(permit *all712.PermitMessage, privateKey *ecdsa.PrivateKey) ([]byte, error) {
 
 	digest, err := permit.Digest()
 	if err != nil {
@@ -129,7 +129,7 @@ func SignEIP2612Permit(permit *all712.Permit, privateKey *ecdsa.PrivateKey) ([]b
 	return signature, nil
 }
 
-func VerifyPermitSignature(permit *all712.Permit) (recovered common.Address, err error) {
+func VerifyPermitSignature(permit *all712.PermitMessage) (recovered common.Address, err error) {
 	if len(permit.Signature) != 132 {
 		err = fmt.Errorf("wrong signature length: %v", len(permit.Signature))
 		return
@@ -189,15 +189,15 @@ func VerifyTransferWithAuthorizationSignature(
 		return
 	}
 
-	nonce_s, err := hex.DecodeString(strings.TrimPrefix(auth.Nonce, "0x"))
+	snonce, err := hex.DecodeString(strings.TrimPrefix(auth.Nonce, "0x"))
 	if err != nil {
 		err = errors.New("Invalid nonce")
 		return
 	}
 
-	copy(nonce[:], nonce_s)
+	copy(nonce[:], snonce)
 
-	digest, err := all712.EIP712TransferHash(
+	digest, err := all712.EIP3009TransferHash(
 		common.HexToAddress(auth.From),
 		common.HexToAddress(auth.To),
 		tokenAddress,
@@ -246,6 +246,57 @@ func VerifyTransferWithAuthorizationSignature(
 		err = fmt.Errorf("Recovered address differ: %s expected %s", recovered, auth.From)
 		return
 	}
+
+	return
+}
+
+func VerifyCrossChainAuthSignature(ccmsg *all712.CrossChainTransferMessage) (recoveredAddress common.Address, err error) {
+	digest, err := ccmsg.Digest()
+	if err != nil {
+		return //TODO: wrap
+	}
+
+	//sigbytes := common.Hex2Bytes(ccmsg.Signature)
+	sig := strings.TrimPrefix(ccmsg.Signature, "0x")
+	sigbytes, err := hex.DecodeString(sig)
+	if err != nil {
+		return
+	}
+	fmt.Println(len(sigbytes))
+	if sigbytes[64] >= 27 {
+		sigbytes[64] -= 27
+	}
+	pub, err := crypto.SigToPub(digest, sigbytes)
+	if err != nil {
+		return
+	}
+	recoveredAddress = crypto.PubkeyToAddress(*pub)
+	if recoveredAddress.Cmp(ccmsg.Authorization.From) != 0 {
+		err = fmt.Errorf("Wrong payer recovered: %s", recoveredAddress.Hex())
+	}
+
+	return
+}
+
+// Returns the signature as []byte and adds it as hex to the message
+func SignCrossChainMessage(
+	ccmsg *all712.CrossChainTransferMessage,
+	privateKey *ecdsa.PrivateKey,
+) (signature []byte, err error) {
+
+	digest, err := ccmsg.Digest()
+	if err != nil {
+		return
+	}
+
+	// --- Sign ---
+	signature, err = crypto.Sign(digest, privateKey)
+	if err != nil {
+		return
+	}
+
+	signature[64] += 27
+	ccmsg.Signature = "0x" + common.Bytes2Hex(signature)
 
 	return
 }

@@ -1,446 +1,4 @@
-package signing
-
-import (
-	"context"
-	"encoding/hex"
-	"encoding/json"
-	"fmt"
-	"log"
-	"math/big"
-	"reflect"
-	"strings"
-	"testing"
-	"time"
-
-	x402types "github.com/coinbase/x402/go/pkg/types"
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/san-lab/sx402/all712"
-	"github.com/san-lab/sx402/evmbinding"
-	"github.com/san-lab/sx402/oft"
-	"github.com/san-lab/sx402/oftcc"
-)
-
-func TestQuoteSendParams(t *testing.T) {
-
-	hexDat, _ := hex.DecodeString(sendFromData[2:])
-	//sendParam := new(
-	mabi, err := abi.JSON(strings.NewReader(ABI))
-	//err = rlp.DecodeBytes(tx.Data(), &v)
-	if err != nil {
-		t.Error(err)
-	}
-	send := mabi.Methods["sendFrom"]
-
-	// 5. Decode
-	args, err := send.Inputs.Unpack(hexDat[4:])
-	if err != nil {
-		log.Fatalf("failed to decode args: %v", err)
-	}
-
-	fmt.Println(len(args))
-
-	sendParams := new(oft.SendParam)
-	CopyFields(sendParams, args[0])
-
-	mfee := new(oft.MessagingFee)
-	CopyFields(mfee, args[1])
-	bt, _ := json.MarshalIndent(sendParams, " ", " ")
-	fmt.Println("extra:", sendParams.ExtraOptions)
-	fmt.Println(string(bt))
-	fmt.Printf(`[%v, 0x%x, %v, %v, "0x%x", "0x", "0x"]`, sendParams.DstEid, sendParams.To, sendParams.AmountLD, sendParams.MinAmountLD, sendParams.ExtraOptions)
-	fmt.Println()
-}
-
-const sendFromData = `0xa6e329f500000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000916200a4b8e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000aab05558448c8a9597287db9f61e2d751645b12a000000000000000000000000aab05558448c8a9597287db9f61e2d751645b12a0000000000000000000000000000000000000000000000000000000000009d4b000000000000000000000000aab05558448c8a9597287db9f61e2d751645b12a0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000012000000000000000000000000000000000000000000000000000000000000001400000000000000000000000000000000000000000000000000000000000000002000300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000`
-
-var fromAddress = common.HexToAddress("0xAA5A032fA7a69f884072C6BA59FE22A90dFbc780")
-
-func TestQuoteSend(t *testing.T) {
-	privKey, _ := crypto.HexToECDSA(aa5privhx)
-	contractAddress := common.HexToAddress("0x89D5F29be7753E4c0ad43D08A5067Afc99231CC9")
-	toAddress := common.HexToAddress("0xCEF702Bd69926B13ab7150624daA7aFEE0300786")
-	benefAddress := common.HexToAddress("0xaab05558448C8a9597287Db9F61e2d751645B12a")
-
-	// Connect to an Ethereum node (e.g., Infura, local node)
-	client, err := evmbinding.GetlientByChainID(big.NewInt(84532))
-	if err != nil {
-
-		log.Fatalf("Failed to connect to Ethereum node: %v", err)
-	}
-
-	defer client.Close()
-
-	// Define your contract's deployed address.
-
-	// Instantiate the contract binding.
-	contract, err := oft.NewOft(contractAddress, client)
-	if err != nil {
-		log.Fatalf("Failed to instantiate the contract: %v", err)
-	}
-
-	// Create a new CallOpts (read-only call)
-	callOpts := &bind.CallOpts{
-		Context: context.Background(),
-	}
-
-	to := [32]byte{}
-	copy(to[12:], toAddress[:])
-	fmt.Printf("0x%x\n", to)
-
-	// Prepare the SendParam structure.
-	// You must set these fields with appropriate values.
-	sendParam := oft.SendParam{
-		DstEid:       40231,              // example destination chain ID
-		To:           to,                 // populate with a properly formatted bytes32 value (e.g., via common.LeftPadBytes(addr.Bytes(), 32))
-		AmountLD:     big.NewInt(100000), // e.g., 1 * 10^18 for 18 decimals
-		MinAmountLD:  big.NewInt(100000), // minimum acceptable amount received on dest chain
-		ExtraOptions: []byte{0, 3},       // if you have extra options, encode them here
-		ComposeMsg:   []byte{},           // provide if necessary
-		OftCmd:       []byte{},           // provide if necessary
-	}
-
-	// Set the _payInLzToken parameter (true or false as required).
-	payInLzToken := false
-
-	// Call quoteSend on the contract.
-	messagingFee, err := contract.QuoteSend(callOpts, sendParam, payInLzToken)
-	if err != nil {
-		log.Fatalf("QuoteSend call failed: %v", err)
-	}
-
-	// The return value is expected to be a struct, for example:
-	// type MessagingFee struct {
-	//     NativeFee  *big.Int
-	//     LzTokenFee *big.Int
-	// }
-	fmt.Printf("Native Fee: %s\n", messagingFee.NativeFee.String())
-	fmt.Printf("LzToken Fee: %s\n", messagingFee.LzTokenFee.String())
-
-	messagingFee.NativeFee.Add(messagingFee.NativeFee, big.NewInt(10096650793526))
-	auth, err := bind.NewKeyedTransactorWithChainID(privKey, big.NewInt(84532))
-	if err != nil {
-		log.Fatalf("Failed to create TransactOpts: %v", err)
-	}
-
-	gasPrice, err := client.SuggestGasPrice(context.Background())
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	// Optionally customize gas
-	auth.GasLimit = uint64(1000000)                           // set if needed
-	auth.GasPrice = gasPrice.Add(gasPrice, big.NewInt(30000)) //
-	auth.Value = messagingFee.NativeFee                       //.Mul(messagingFee.NativeFee, big.NewInt(2))
-	/*
-		//txh, err := contract.Send(auth, sendParam, messagingFee, benefAddress)
-		txh, err := contract.SendFrom(auth, sendParam, messagingFee, fromAddress, benefAddress)
-
-		if err != nil {
-			t.Error(err)
-
-		}
-		fmt.Printf("transaction hash: %s", txh.Hash().Hex())
-	*/
-	//Prepare authorization
-	nonce := crypto.Keccak256Hash([]byte(time.ANSIC))
-
-	validAfter := big.NewInt(time.Now().Unix() - 300)
-	validBefore := big.NewInt(time.Now().Add(time.Hour).Unix())
-
-	authorization := all712.EVMPayload{}
-	authorization.Authorization = new(x402types.ExactEvmPayloadAuthorization)
-	sauth := authorization.Authorization
-	sauth.ValidAfter = validAfter.String()
-	sauth.ValidBefore = validBefore.String()
-	sauth.From = fromAddress.Hex()
-	sauth.To = toAddress.Hex()
-	sauth.Nonce = fmt.Sprintf("0x%x", nonce)
-	sauth.Value = sendParam.AmountLD.String()
-
-	aa5priv, err := crypto.HexToECDSA(aa5privhx)
-	if err != nil {
-		t.Error()
-		return
-	}
-
-	sig, err := SignERC3009Authorization(authorization.Authorization, aa5priv, big.NewInt(84532), "EURS", "1", contractAddress)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	//VerifyTransferWithAuthorizationSignature(hex.EncodeToString(sig), *sauth, "EURS", "1", big.NewInt(84532), contractAddress)
-	//authorization.Signature = fmt.Sprintf("0x%x", sig)
-	txh, err := contract.SendWithAuthorization(auth, sendParam, messagingFee, fromAddress, validAfter, validBefore, nonce, sig, benefAddress)
-	if err != nil {
-		t.Error(err)
-
-	}
-	fmt.Printf("transaction hash: %s", txh.Hash().Hex())
-
-}
-
-func TestCrossChainAuthSend(t *testing.T) {
-	authorizerKey, _ := crypto.HexToECDSA(aa5privhx)
-	log.Println("Authorizer:", crypto.PubkeyToAddress(authorizerKey.PublicKey).Hex())
-	senderKey, _ := crypto.HexToECDSA(privkeyhex)
-	//contractAddress := common.HexToAddress("0x7AE6D004cd29570974357f30c016f8ea3e1A628A")
-	contractAddress := common.HexToAddress("0x1B15E1919a5b3AF7C6636b5E9E96d5E313B21774")
-	toAddress := common.HexToAddress("0xCEF702Bd69926B13ab7150624daA7aFEE0300786")
-	benefAddress := common.HexToAddress("0xaab05558448C8a9597287Db9F61e2d751645B12a")
-
-	// Connect to an Ethereum node (e.g., Infura, local node)
-	sourceChainId := big.NewInt(84532)
-	client, err := evmbinding.GetlientByChainID(sourceChainId)
-	if err != nil {
-
-		log.Fatalf("Failed to connect to Ethereum node: %v", err)
-	}
-
-	defer client.Close()
-
-	// Define your contract's deployed address.
-
-	// Instantiate the contract binding.
-	contract, err := oftcc.NewOftcc(contractAddress, client)
-	if err != nil {
-		log.Fatalf("Failed to instantiate the contract: %v", err)
-	}
-
-	// Create a new CallOpts (read-only call)
-	callOpts := &bind.CallOpts{
-		Context: context.Background(),
-	}
-
-	to := [32]byte{}
-	copy(to[12:], toAddress[:])
-	fmt.Printf("0x%x\n", to)
-
-	// Prepare the SendParam structure.
-	// You must set these fields with appropriate values.
-	sendParam := oftcc.SendParam{
-		DstEid:       40231,            // example destination chain ID
-		To:           to,               // populate with a properly formatted bytes32 value (e.g., via common.LeftPadBytes(addr.Bytes(), 32))
-		AmountLD:     big.NewInt(1000), // e.g., 1 * 10^18 for 18 decimals
-		MinAmountLD:  big.NewInt(950),  // minimum acceptable amount received on dest chain
-		ExtraOptions: []byte{0, 3},     // if you have extra options, encode them here
-		ComposeMsg:   []byte{},         // provide if necessary
-		OftCmd:       []byte{},         // provide if necessary
-	}
-
-	//Prepare authorization
-	nonce := crypto.Keccak256Hash([]byte(time.ANSIC))
-	nonce[0] += 1
-
-	validAfter := big.NewInt(time.Now().Unix() - 300)
-	validBefore := big.NewInt(time.Now().Add(time.Hour).Unix())
-
-	ccmsg := all712.CrossChainTransferMessage{}
-
-	ccmsg.Authorization = new(all712.CrossChainTransferAuthorization)
-	ccauth := ccmsg.Authorization
-	ccauth.ValidAfter = validAfter
-	ccauth.ValidBefore = validBefore
-	ccauth.From = fromAddress
-	ccauth.To = toAddress
-	ccauth.Nonce = fmt.Sprintf("0x%x", nonce)
-	ccauth.Amount = sendParam.AmountLD
-	ccauth.MinimalAmount = sendParam.MinAmountLD
-	ccauth.DestinationChain = big.NewInt(int64(sendParam.DstEid))
-
-	ccmsg.Domain = new(all712.Domain)
-	ccmsg.Domain.ChainID = big.NewInt(84532)
-	ccmsg.Domain.Name = "EURSM"
-	ccmsg.Domain.Version = "1"
-	ccmsg.Domain.VerifyingContract = contractAddress
-
-	log.Println("from:", ccauth.From)
-	log.Println("to:", ccauth.To)
-	log.Println("nonce:", ccmsg.Authorization.Nonce)
-	log.Println("va:", ccauth.ValidAfter)
-	log.Println("vb:", ccauth.ValidBefore)
-
-	d, _ := ccmsg.Digest()
-	log.Printf("hash: 0x%x\n", d)
-
-	sig, err := SignCrossChainMessage(&ccmsg, authorizerKey)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	rec, err := VerifyCrossChainAuthSignature(&ccmsg)
-	log.Println(err)
-	log.Println(rec.Hex())
-
-	// Set the _payInLzToken parameter (true or false as required).
-	payInLzToken := false
-
-	// Call quoteSend on the contract.
-	messagingFee, err := contract.QuoteSend(callOpts, sendParam, payInLzToken)
-	if err != nil {
-		log.Fatalf("QuoteSend call failed: %v", err)
-	}
-
-	// The return value is expected to be a struct, for example:
-	// type MessagingFee struct {
-	//     NativeFee  *big.Int
-	//     LzTokenFee *big.Int
-	// }
-	fmt.Printf("Native Fee: %s\n", messagingFee.NativeFee.String())
-	fmt.Printf("LzToken Fee: %s\n", messagingFee.LzTokenFee.String())
-
-	messagingFee.NativeFee.Add(messagingFee.NativeFee, big.NewInt(10000))
-
-	gasPrice, err := client.SuggestGasPrice(context.Background())
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	auth, err := bind.NewKeyedTransactorWithChainID(senderKey, big.NewInt(84532))
-	if err != nil {
-		log.Fatalf("Failed to create TransactOpts: %v", err)
-	}
-
-	// Optionally customize gas
-	auth.GasLimit = uint64(1000000)                           // set if needed
-	auth.GasPrice = gasPrice.Add(gasPrice, big.NewInt(30000)) //
-	auth.Value = messagingFee.NativeFee
-
-	//VerifyTransferWithAuthorizationSignature(hex.EncodeToString(sig), *sauth, "EURS", "1", big.NewInt(84532), contractAddress)
-	//authorization.Signature = fmt.Sprintf("0x%x", sig)
-	txh, err := contract.SendWithCCAuthorization(auth, sendParam, messagingFee, fromAddress, validAfter, validBefore, nonce, sig, benefAddress)
-	if err != nil {
-		t.Error(err)
-
-	}
-	fmt.Printf("transaction hash: %s", txh.Hash().Hex())
-
-}
-
-var rawTxHex = `0x02f9025683066eee220184078b30c483037d9f9479ef5e7e18a5719d0b8af4e7ea0a54818441aa06860bb2affbd7b1b901e4c7c7f5b3000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000bb2affbd7b10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000aab05558448c8a9597287db9f61e2d751645b12a0000000000000000000000000000000000000000000000000000000000009d35000000000000000000000000cef702bd69926b13ab7150624daa7afee03007860000000000000000000000000000000000000000000000000186cc6acd4b00000000000000000000000000000000000000000000000000000186cc6acd4b000000000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000012000000000000000000000000000000000000000000000000000000000000001400000000000000000000000000000000000000000000000000000000000000002000300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c080a00fa5af8963594c86910df4576db3b69dcd74a2c504bb99a2e787fc4de1f0c59fa052ab1f3e6551077cc6f2472467e820a273d73d335621cef0e1e631d522847d89`
-
-func TestSendParams(t *testing.T) {
-	if len(rawTxHex) >= 2 && rawTxHex[:2] == "0x" {
-		rawTxHex = rawTxHex[2:]
-	}
-
-	rawTxBytes, err := hex.DecodeString(rawTxHex)
-	if err != nil {
-		log.Fatalf("Failed to decode hex: %v", err)
-	}
-
-	// Check type byte (EIP-2718 typed transaction envelope)
-	txType := rawTxBytes[0]
-	if txType != 0x02 {
-		log.Fatalf("Unexpected transaction type: got 0x%x, expected 0x02 (EIP-1559)", txType)
-	}
-
-	// Strip the type byte (EIP-1559 payload follows)
-	txPayload := rawTxBytes[:]
-
-	// Decode using go-ethereum's EIP-1559 transaction structure
-	var tx = new(types.Transaction)
-	err = tx.UnmarshalBinary(txPayload)
-	if err != nil {
-		log.Fatalf("Failed to decode EIP-1559 tx: %v", err)
-	}
-
-	// Output transaction details
-	fmt.Println("Transaction decoded successfully:")
-	fmt.Printf("Nonce: %d\n", tx.Nonce())
-	fmt.Printf("To: %v\n", tx.To())
-	fmt.Printf("Value: %s\n", tx.Value())
-	fmt.Printf("Gas Tip Cap (maxPriorityFeePerGas): %s\n", tx.GasTipCap()) // dynamic fee
-	fmt.Printf("Gas Fee Cap (maxFeePerGas): %s\n", tx.GasFeeCap())         // dynamic fee
-	fmt.Printf("Gas: %d\n", tx.Gas())
-	fmt.Printf("Data: 0x%x\n", tx.Data())
-
-	signer := types.NewLondonSigner(tx.ChainId())
-	from, err := types.Sender(signer, tx)
-	if err != nil {
-		log.Fatalf("Failed to derive sender: %v", err)
-	}
-	fmt.Printf("From: %s\n", from.Hex())
-	fmt.Printf("ChainID: %s\n", tx.ChainId().String())
-
-	fmt.Printf("fee: 0x%x\n", fee)
-	fmt.Println("cmp  0xbb2affbd7b1")
-
-	//sendParam := new(
-	mabi, err := abi.JSON(strings.NewReader(ABI))
-	//err = rlp.DecodeBytes(tx.Data(), &v)
-	if err != nil {
-		t.Error(err)
-	}
-	send := mabi.Methods["send"]
-
-	// 5. Decode
-	args, err := send.Inputs.Unpack(tx.Data()[4:])
-	if err != nil {
-		log.Fatalf("failed to decode args: %v", err)
-	}
-
-	fmt.Println("Beneficiary:", args[2])
-	// Type assertions
-	sendParam := oft.SendParam{}
-	CopyFields(&sendParam, args[0])
-	fmt.Println(sendParam.ExtraOptions)
-
-}
-
-// CopyFields copies values from src to dst where fields have the same name and type.
-func CopyFields(dst interface{}, src interface{}) error {
-	dstVal := reflect.ValueOf(dst)
-	srcVal := reflect.ValueOf(src)
-
-	// dst must be a pointer to a struct
-	if dstVal.Kind() != reflect.Ptr || dstVal.Elem().Kind() != reflect.Struct {
-		return fmt.Errorf("destination must be a pointer to a struct")
-	}
-	dstVal = dstVal.Elem()
-
-	// src must be a struct
-	if srcVal.Kind() == reflect.Ptr {
-		srcVal = srcVal.Elem()
-	}
-	if srcVal.Kind() != reflect.Struct {
-		return fmt.Errorf("source must be a struct or pointer to struct")
-	}
-
-	dstType := dstVal.Type()
-	//srcType := srcVal.Type()
-
-	for i := 0; i < dstVal.NumField(); i++ {
-		dstField := dstVal.Field(i)
-		dstFieldType := dstType.Field(i)
-
-		// Find matching field by name
-		srcFieldVal := srcVal.FieldByName(dstFieldType.Name)
-		if !srcFieldVal.IsValid() {
-			continue
-		}
-
-		// Only settable and type-compatible fields
-		if dstField.CanSet() && srcFieldVal.Type() == dstField.Type() {
-			dstField.Set(srcFieldVal)
-		}
-	}
-
-	return nil
-}
-
-const quoteSendData = `0x3b6f743b000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000009d35000000000000000000000000cef702bd69926b13ab7150624daa7afee03007860000000000000000000000000000000000000000000000000186cc6acd4b00000000000000000000000000000000000000000000000000000186cc6acd4b000000000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000012000000000000000000000000000000000000000000000000000000000000001400000000000000000000000000000000000000000000000000000000000000002000300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000`
-
-const fee = 12862084601777 //12862084601777, 114576763194326
-
-const ABI = `[
+[
 	{
 		"inputs": [
 			{
@@ -466,6 +24,17 @@ const ABI = `[
 		],
 		"stateMutability": "nonpayable",
 		"type": "constructor"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "amountSD",
+				"type": "uint256"
+			}
+		],
+		"name": "AmountSDOverflowed",
+		"type": "error"
 	},
 	{
 		"inputs": [
@@ -963,6 +532,19 @@ const ABI = `[
 	},
 	{
 		"inputs": [],
+		"name": "CROSS_CHAIN_TRANSFER_TYPEHASH",
+		"outputs": [
+			{
+				"internalType": "bytes32",
+				"name": "",
+				"type": "bytes32"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
 		"name": "DOMAIN_SEPARATOR",
 		"outputs": [
 			{
@@ -972,6 +554,60 @@ const ABI = `[
 			}
 		],
 		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "from",
+				"type": "address"
+			},
+			{
+				"internalType": "address",
+				"name": "to",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "amountLD",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "minAmountLD",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint32",
+				"name": "dstEid",
+				"type": "uint32"
+			},
+			{
+				"internalType": "uint256",
+				"name": "validAfter",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "validBefore",
+				"type": "uint256"
+			},
+			{
+				"internalType": "bytes32",
+				"name": "nonce",
+				"type": "bytes32"
+			}
+		],
+		"name": "HashCCData",
+		"outputs": [
+			{
+				"internalType": "bytes32",
+				"name": "",
+				"type": "bytes32"
+			}
+		],
+		"stateMutability": "pure",
 		"type": "function"
 	},
 	{
@@ -1261,7 +897,7 @@ const ABI = `[
 				"type": "uint8"
 			}
 		],
-		"stateMutability": "view",
+		"stateMutability": "pure",
 		"type": "function"
 	},
 	{
@@ -1541,6 +1177,30 @@ const ABI = `[
 		"name": "lzReceiveSimulate",
 		"outputs": [],
 		"stateMutability": "payable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			},
+			{
+				"internalType": "uint32",
+				"name": "",
+				"type": "uint32"
+			}
+		],
+		"name": "markups",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
 		"type": "function"
 	},
 	{
@@ -2186,7 +1846,7 @@ const ABI = `[
 				"type": "address"
 			}
 		],
-		"name": "sendWithAuthorization",
+		"name": "sendWithCCAuthorization",
 		"outputs": [
 			{
 				"internalType": "bool",
@@ -2236,6 +1896,24 @@ const ABI = `[
 			}
 		],
 		"name": "setEnforcedOptions",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_markup",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint32",
+				"name": "dstEid",
+				"type": "uint32"
+			}
+		],
+		"name": "setMarkup",
 		"outputs": [],
 		"stateMutability": "nonpayable",
 		"type": "function"
@@ -2294,7 +1972,7 @@ const ABI = `[
 				"type": "uint8"
 			}
 		],
-		"stateMutability": "view",
+		"stateMutability": "pure",
 		"type": "function"
 	},
 	{
@@ -2511,4 +2189,4 @@ const ABI = `[
 		"stateMutability": "view",
 		"type": "function"
 	}
-]`
+]

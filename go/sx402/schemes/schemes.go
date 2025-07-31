@@ -39,7 +39,10 @@ type Scheme struct {
 }
 
 // ---ASSETS-------
-const ARBITRUM_SEPOLIA_EURSM = "0xaE803e9e127fcEf82d6eFEA114e2Ac04469a325B"
+const ARBITRUM_SEPOLIA_EURSM = "0x63e9f68842D0768D39eEC1767FD2B02eFB9559e3"
+const AMOY_EURSM = "0x63e9f68842D0768D39eEC1767FD2B02eFB9559e3"
+const BASE_SEPOLIA_EURSM = "0x1B15E1919a5b3AF7C6636b5E9E96d5E313B21774"
+const OP_SEPOLIA_EURSM = "0x26beC72A7a27c26c570B30126AEc8f2709085f22"
 
 const BASE_SEPOLIA_EURS = "0x89D5F29be7753E4c0ad43D08A5067Afc99231CC9" //"0x6Ac14e603A2742fB919248D66c8ecB05D8Aec1e9"
 const AMOY_EURS = "0x73a4F05628fE6976a5d45Fd321b4eD588D8c9Eb3"
@@ -61,6 +64,11 @@ const Scheme_Payer0_toArbitrum = "payer0_toArbitrum"
 const Scheme_Payer0_toBase = "payer0_toBase"
 
 const Scheme_Payer0M_toBase = "payer0_toBase_withMarkup"
+
+const Scheme_Payer0Plus_toBase = "PZ_toBase"
+const Scheme_Payer0Plus_toArbitrum = "PZ_toArbitrum"
+const Scheme_Payer0Plus_toOP = "PZ_toOP"
+const Scheme_Payer0Plus_toAmoy = "PZ_toAmoy"
 
 // ---EXTRA INFO MAPS----
 type ExtraInfo map[string]string
@@ -123,7 +131,15 @@ var ExactEursOnAmoy = NewScheme(Scheme_Exact_EURS, evmbinding.Amoy, AMOY_EURS, E
 var Payer0EURSBaseToArbitrum = NewScheme(Scheme_Payer0_toArbitrum, evmbinding.Base_sepolia, BASE_SEPOLIA_EURS, ExtraEURS.SetDstEid("40231"))
 var Payer0EURSArbitrumToBase = NewScheme(Scheme_Payer0_toBase, evmbinding.Arbitrum_sepolia, ARBITRUM_SEPOLIA_EURS, ExtraEURS.SetDstEid("40245"))
 
-var Payer0MarkupArbitrumToBase = NewScheme(Scheme_Payer0M_toBase, evmbinding.Arbitrum_sepolia, ARBITRUM_SEPOLIA_EURSM, ExtraEURSM.SetDstEid("40245"))
+var Payer0MarkupArbitrumToBase = NewScheme(Scheme_Payer0M_toBase, evmbinding.Arbitrum_sepolia, ARBITRUM_SEPOLIA_EURSM, ExtraEURSM.SetDstEid("40245").Set("maxMarkup", "42"))
+
+var P0_Arbitrum_toBase = NewScheme(Scheme_Payer0Plus_toBase, evmbinding.Arbitrum_sepolia, ARBITRUM_SEPOLIA_EURSM, ExtraEURSM.SetDstEid("40245"))
+var P0_Base_toArbitrum = NewScheme(Scheme_Payer0Plus_toArbitrum, evmbinding.Base_sepolia, BASE_SEPOLIA_EURSM,
+	ExtraEURSM.SetDstEid("40231"))
+var P0_Amoy_toArbitrum = NewScheme(Scheme_Payer0Plus_toArbitrum, evmbinding.Amoy, AMOY_EURSM,
+	ExtraEURSM.SetDstEid("40231"))
+var P0_OP_toBase = NewScheme(Scheme_Payer0Plus_toBase, evmbinding.OP_Sepolia, OP_SEPOLIA_EURSM,
+	ExtraEURSM.SetDstEid("40245"))
 
 //---------SCHEMES END---------------
 

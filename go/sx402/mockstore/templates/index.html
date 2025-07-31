@@ -77,156 +77,7 @@
         {{- end }}
     };
 
-    /*
-    async function signAuthorization() {
-
-      // Check current network
-  const currentChainIdHex = await ethereum.request({ method: 'eth_chainId' });
-  const currentChainId = parseInt(currentChainIdHex, 16);
-
-  const selectedIndex = document.getElementById('paymentOptions').value;
-  const schema = currentSchemas[selectedIndex];
-  
-  const expectedChainId = chainIdMap[schema.network];
-  console.log("chainids:", currentChainId, expectedChainId);
-
-  const currentNetworkName = Object.keys(chainIdMap).find(key => chainIdMap[key] === currentChainId) || 'Unknown';
-
-  if (currentChainId !== expectedChainId) {
-    alert(`Please switch your wallet network to ${schema.network} (chainId ${expectedChainId}) before signing.\n\n` +
-    `Your current network is ${currentNetworkName} (${currentChainId}).`);
-    return
-  }
-
-  const now = Math.floor(Date.now() / 1000);
-  const validAfter = 0;
-  const validBefore = now + 86400;
-  const nonce = '0x' + [...crypto.getRandomValues(new Uint8Array(32))].map(x => x.toString(16).padStart(2, '0')).join('');
-
-  const from = ethereum.selectedAddress;
-  const to = schema.payTo;
-  const value = schema.maxAmountRequired;
-  const chainId = chainIdMap[schema.network];
-  const tokenAddress = schema.asset;
-  const tokenName = schema.extra.name;
-  const tokenVersion = schema.extra?.version || "2";
-
-  var xPaymentHeader;
- if (schema.scheme.startsWith("permit")) {
-  const nonce = await fetchPermitNonce(schema.network, schema.asset, from);
-  const deadline = validBefore;
-
-  const domain = {
-    name: tokenName,                // e.g. "USDC"
-    version: tokenVersion,         // e.g. "2"
-    chainId: expectedChainId,      // e.g. 84532
-    verifyingContract: tokenAddress
-  };
-
-  const message = {
-    owner: from,
-    spender: schema.extra.facilitator,
-    value: Number(value),
-    deadline
-  };
-
-  const signature = await signPermitAuthorization({
-    owner: from,
-    spender: schema.extra.facilitator,
-    value,
-    nonce,
-    deadline
-  }, tokenAddress, tokenName, tokenVersion, expectedChainId);
-
-  xPaymentHeader = buildPermitXPaymentHeader({
-    schema,
-    domain,
-    message,
-    nonce,
-    signature
-  });
-
-  console.log("X-Payment Header (Permit):", JSON.stringify(xPaymentHeader));
-
-} else if (schema.scheme.startsWith("exact") || schema.scheme.startsWith("payer0")) {
-  const message = { from, to, value, validAfter, validBefore, nonce };
-  const signature = await signTransferAuthorization(message, tokenAddress, tokenName, tokenVersion, chainId);
-
-  const basePayload = {
-    signature,
-    authorization: {
-      from,
-      to,
-      value: value.toString(),
-      validAfter: validAfter.toString(),
-      validBefore: validBefore.toString(),
-      nonce
-    }
-  };
-
-  if (schema.scheme.startsWith("payer0")) {
-    const dstEid = parseInt(schema.extra?.dstEid);
-    if (isNaN(dstEid)) {
-      alert("Missing or invalid destEid for payer0 scheme.");
-      return;
-    }
-    console.log(dstEid);
-
-    xPaymentHeader = {
-      x402Version: 1,
-      scheme: schema.scheme,
-      network: schema.network,
-      payload: {
-        ...basePayload,
-        dstEid,
-        minAmount: Number(value)
-      }
-    };
-  } else {
-    xPaymentHeader = {
-      x402Version: 1,
-      scheme: schema.scheme,
-      network: schema.network,
-      payload: basePayload
-    };
-  }
-
-} else {
-  console.log("Unknown scheme:", schema.scheme);
-}
-
-  try {
-    const encodeHeader = document.getElementById('encodeCheckbox').checked;
-const headerValue = encodeHeader
-  ? btoa(JSON.stringify(xPaymentHeader))
-  : JSON.stringify(xPaymentHeader);
-
-const response = await fetch(currentHref, {
-  method: 'GET',
-  headers: {
-    'X-Payment': headerValue
-  }
-});
-
-
-    if (response.ok) {
-      const html = await response.text();
-      document.open();
-      document.write(html);
-      document.close();
-    } else {
-      const errorData = await response.json();
-      const errorMessage = `${errorData.error}\n\n${errorData.details}`;
-      alert(`Access denied:\n\n${errorMessage}`);
-    }
-
-  } catch (error) {
-    console.error("Error fetching resource with payment:", error);
-  }
-
-  closeModal();
-}
-*/
+    
     
     async function signAuthorization() {
   // Check current network
@@ -282,66 +133,10 @@ const response = await fetch(currentHref, {
   if (scheme.scheme.startsWith("permit")) {
     xPaymentHeader = await PreparePermitHeader(x402Data);
 
-  } else if (scheme.scheme.startsWith("payer0Plus_")) {
+  } else if (scheme.scheme.startsWith("PZ_")) {
     // === NEW BRANCH FOR payer0Plus_ schemes ===
 
-    // ASSUMPTION: schema.extra will contain `minimalAmount` and `dstEid` for this scheme
-    const minimalAmount = maxAmount -50; //schema.extra?.minimalAmount; // Keep as string for uint256
-    const destinationChain = Number(scheme.extra?.dstEid); // Ensure numeric for uint16
-
-    if (minimalAmount === undefined || isNaN(destinationChain)) {
-        alert("Missing `minimalAmount` or invalid `dstEid` for payer0Plus_ scheme in PaymentRequirements.extra.");
-        return;
-    }
-
-    const message = {
-      from,
-      to,
-      amount: maxAmount.toString(), // maxAmountRequired from schema is the source chain amount
-      minimalAmount: minimalAmount.toString(), // ensure it's stringified
-      destinationChain: destinationChain.toString(),
-      validAfter: validAfter.toString(),
-      validBefore: validBefore.toString(),
-      nonce
-    };
-
-    const domain = {
-      name: tokenName,
-      version: tokenVersion,
-      chainId: expectedChainId,
-      verifyingContract: tokenAddress
-    };
-
-    console.log("Payer0Plus Message (CrossChainTransferWithAuthorization):", message);
-    console.log("Payer0Plus EIP-712 Domain:", domain);
-
-    // To calculate the EIP-712 hash client-side, you would typically use a library
-    // like ethers.js's _TypedDataEncoder:
-    // import { _TypedDataEncoder } from '@ethersproject/hash'; // Or from ethers.utils
-    // const hash = _TypedDataEncoder.hash(domain, types.CrossChainTransferWithAuthorization, message);
-    // console.log("Payer0Plus EIP-712 Hash:", hash);
-    // For this demo, the hash is implicitly calculated by MetaMask during signing.
-
-    const signature = await signCrossChainTransferAuthorization(
-      message,
-      tokenAddress,
-      tokenName,
-      tokenVersion,
-      expectedChainId
-    );
-
-    console.log("Signature:", signature);
-
-    xPaymentHeader = {
-      x402Version: 1,
-      scheme: scheme.scheme,
-      network: scheme.network,
-      payload: {
-        signature,
-        authorization: message, // The full CrossChainTransferWithAuthorization message
-        domain // The EIP-712 domain used for signing
-      }
-    };
+    xPaymentHeader = await PrepareCrossChainAuthorizaton(x402Data);
 
   } ///----------------
    else if (scheme.scheme.startsWith("exact") || scheme.scheme.startsWith("payer0")) {
@@ -763,8 +558,80 @@ async function PreparePermitHeader(data) {
 
     console.log("X-Payment Header (Permit):", JSON.stringify(xPaymentHeader));
     return xPaymentHeader;
-}
 
+  }
+
+
+async function PrepareCrossChainAuthorizaton(data) {
+      // ASSUMPTION: schema.extra will contain `minimalAmount` and `dstEid` for this scheme
+    const minimalAmount = data.maxAmount -50; //schema.extra?.minimalAmount; // Keep as string for uint256
+    const destinationChain = Number(data.extra?.dstEid); // Ensure numeric for uint16
+
+    console.log("data:", data);
+
+    if (minimalAmount === undefined || isNaN(destinationChain)) {
+        alert("Missing `minimalAmount` or invalid `dstEid` for payer0Plus_ scheme in PaymentRequirements.extra.");
+        return;
+    }
+
+    const message = {
+      from: data.from,
+      to: data.to,
+      amount: Number(data.maxAmount), // maxAmountRequired from schema is the source chain amount
+      minimalAmount: Number(minimalAmount), // ensure it's stringified
+      destinationChain: Number(destinationChain),
+      validAfter: Number(data.validAfter),
+      validBefore: Number(data.validBefore),
+      nonce: data.nonce32
+    };
+
+    const domain = {
+      name: data.tokenName,
+      version: data.tokenVersion,
+      chainId: data.chainId,
+      verifyingContract: data.tokenAddress
+    };
+
+    console.log("Payer0Plus Message (CrossChainTransferWithAuthorization):", message);
+    console.log("Payer0Plus EIP-712 Domain:", domain);
+
+    const stringMessage = {
+      from: data.from,
+      to: data.to,
+      amount: data.maxAmount.toString(), // maxAmountRequired from schema is the source chain amount
+      minimalAmount: minimalAmount.toString(), // ensure it's stringified
+      destinationChain: destinationChain,
+      validAfter: data.validAfter.toString(),
+      validBefore: data.validBefore.toString(),
+      nonce: data.nonce32
+    };
+
+
+    const signature = await signCrossChainTransferAuthorization(
+      stringMessage,
+      data.tokenAddress,
+      data.tokenName,
+      data.tokenVersion,
+      data.chainId
+    );
+
+    console.log("Signature:", signature);
+
+    xPaymentHeader = {
+      x402Version: 1,
+      scheme: data.scheme.scheme,
+      network: data.scheme.network,
+      payload: {
+        signature,
+        authorization: message, // The full CrossChainTransferWithAuthorization message
+        domain // The EIP-712 domain used for signing
+      }
+    };
+    console.log(xPaymentHeader);
+    return xPaymentHeader;
+
+
+}
 
 
 

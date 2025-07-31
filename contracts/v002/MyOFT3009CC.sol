@@ -15,6 +15,10 @@ contract MyOFT3009CC is OFT3009CC {
         address _delegate
     ) OFT3009CC(_name, _version, _lzEndpoint, _delegate)  {}
 
+    bytes32 public constant CROSS_CHAIN_TRANSFER_TYPEHASH = keccak256(
+        "CrossChainTransferWithAuthorization(address from,address to,uint256 amount,uint256 minimalAmount,uint256 destinationChain,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
+    );
+
     // facilitator=>(dstEid=>markup))
     mapping (address=>mapping(uint32=>uint256)) public markups;
 
@@ -22,7 +26,13 @@ contract MyOFT3009CC is OFT3009CC {
         markups[msg.sender][dstEid]=_markup;
     }
 
+    function sharedDecimals() public pure override returns (uint8) {
+        return 6;
+    }
 
+    function decimals() public pure override returns(uint8) {
+        return 6;
+    }
 
     function mint(address to, uint amount)  external  onlyOwner  {
         _mint(to, amount);
@@ -82,7 +92,7 @@ contract MyOFT3009CC is OFT3009CC {
         MessagingFee calldata _fee,
         address _from, 
         address _refundAddress
-        ) public virtual returns (bool) {
+        ) public payable returns (bool) {
         address spender = msg.sender;
         _spendAllowance(_from, spender, _sendParam.amountLD );
         _transfer(_from, spender, _sendParam.amountLD);
@@ -99,7 +109,7 @@ contract MyOFT3009CC is OFT3009CC {
         bytes32 nonce,
         bytes memory signature,
         address _refundAddress
-        ) public virtual returns (bool) {
+        ) public payable returns (bool) {
         
         _requireValidAuthorization(_from, nonce, validAfter, validBefore);
         _requireValidSignature(
@@ -144,7 +154,7 @@ contract MyOFT3009CC is OFT3009CC {
 
 
     function HashCCData(address from, address to, 
-            uint256 amountLD, uint256 minAmountLD, uint32 dstEid, 
+            uint256 amountLD, uint256 minAmountLD, uint256 dstEid, 
             uint256 validAfter, uint256 validBefore, 
             bytes32 nonce) public pure returns (bytes32) {
        return keccak256(

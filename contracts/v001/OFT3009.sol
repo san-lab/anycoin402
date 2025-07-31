@@ -1,20 +1,4 @@
-/**
- * Copyright 2023 Circle Internet Group, Inc. All rights reserved.
- *
- * SPDX-License-Identifier: Apache-2.0
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// SPDX-License-Identifier: UNLICENSED
 
 pragma solidity ^0.8.22;
 
@@ -62,16 +46,7 @@ abstract contract OFT3009 is OFT  {
     }
 
    
-
-
-    /**
-     * @notice Returns the state of an authorization
-     * @dev Nonces are randomly generated 32-byte data unique to the
-     * authorizer's address
-     * @param authorizer    Authorizer's address
-     * @param nonce         Nonce of the authorization
-     * @return True if the nonce is used
-     */
+   
     function authorizationState(address authorizer, bytes32 nonce)
         external
         view
@@ -80,18 +55,7 @@ abstract contract OFT3009 is OFT  {
         return _authorizationStates[authorizer][nonce];
     }
 
-    /**
-     * @notice Execute a transfer with a signed authorization
-     * @param from          Payer's address (Authorizer)
-     * @param to            Payee's address
-     * @param value         Amount to be transferred
-     * @param validAfter    The time after which this is valid (unix time)
-     * @param validBefore   The time before which this is valid (unix time)
-     * @param nonce         Unique nonce
-     * @param v             v of the signature
-     * @param r             r of the signature
-     * @param s             s of the signature
-     */
+    
     function _transferWithAuthorization(
         address from,
         address to,
@@ -114,17 +78,7 @@ abstract contract OFT3009 is OFT  {
         );
     }
 
-    /**
-     * @notice Execute a transfer with a signed authorization
-     * @dev EOA wallet signatures should be packed in the order of r, s, v.
-     * @param from          Payer's address (Authorizer)
-     * @param to            Payee's address
-     * @param value         Amount to be transferred
-     * @param validAfter    The time after which this is valid (unix time)
-     * @param validBefore   The time before which this is valid (unix time)
-     * @param nonce         Unique nonce
-     * @param signature     Signature byte array produced by an EOA wallet or a contract wallet
-     */
+   
     function _transferWithAuthorization(
         address from,
         address to,
@@ -158,14 +112,6 @@ abstract contract OFT3009 is OFT  {
     
     
 
-    /**
-     * @notice Attempt to cancel an authorization
-     * @param authorizer    Authorizer's address
-     * @param nonce         Nonce of the authorization
-     * @param v             v of the signature
-     * @param r             r of the signature
-     * @param s             s of the signature
-     */
     function _cancelAuthorization(
         address authorizer,
         bytes32 nonce,
@@ -176,13 +122,7 @@ abstract contract OFT3009 is OFT  {
         _cancelAuthorization(authorizer, nonce, abi.encodePacked(r, s, v));
     }
 
-    /**
-     * @notice Attempt to cancel an authorization
-     * @dev EOA wallet signatures should be packed in the order of r, s, v.
-     * @param authorizer    Authorizer's address
-     * @param nonce         Nonce of the authorization
-     * @param signature     Signature byte array produced by an EOA wallet or a contract wallet
-     */
+    
     function _cancelAuthorization(
         address authorizer,
         bytes32 nonce,
@@ -220,12 +160,7 @@ abstract contract OFT3009 is OFT  {
         _cancelAuthorization(authorizer, nonce, v, r, s);
     }
 
-    /**
-     * @notice Validates that signature against input data struct
-     * @param signer        Signer's address
-     * @param dataHash      Hash of encoded data struct
-     * @param signature     Signature byte array produced by an EOA wallet or a contract wallet
-     */
+    
     function _requireValidSignature(
         address signer,
         bytes32 dataHash,
@@ -255,11 +190,7 @@ abstract contract OFT3009 is OFT  {
         }
     }
 
-    /**
-     * @notice Check that an authorization is unused
-     * @param authorizer    Authorizer's address
-     * @param nonce         Nonce of the authorization
-     */
+    
     function _requireUnusedAuthorization(address authorizer, bytes32 nonce)
         internal
         view
@@ -270,13 +201,7 @@ abstract contract OFT3009 is OFT  {
         );
     }
 
-    /**
-     * @notice Check that authorization is valid
-     * @param authorizer    Authorizer's address
-     * @param nonce         Nonce of the authorization
-     * @param validAfter    The time after which this is valid (unix time)
-     * @param validBefore   The time before which this is valid (unix time)
-     */
+    
     function _requireValidAuthorization(
         address authorizer,
         bytes32 nonce,
@@ -291,11 +216,7 @@ abstract contract OFT3009 is OFT  {
         _requireUnusedAuthorization(authorizer, nonce);
     }
 
-    /**
-     * @notice Mark an authorization as used
-     * @param authorizer    Authorizer's address
-     * @param nonce         Nonce of the authorization
-     */
+   
     function _markAuthorizationAsUsed(address authorizer, bytes32 nonce)
         internal
     {
@@ -314,16 +235,7 @@ abstract contract OFT3009 is OFT  {
         return isValidERC1271SignatureNow(signer, digest, signature);
     }
 
-    /**
-     * @dev Checks if a signature is valid for a given signer and data hash. The signature is validated
-     * against the signer smart contract using ERC1271.
-     * @param signer        Address of the claimed signer
-     * @param digest        Keccak-256 hash digest of the signed message
-     * @param signature     Signature byte array associated with hash
-     *
-     * NOTE: Unlike ECDSA signatures, contract signatures are revocable, and the outcome of this function can thus
-     * change through time. It could return true at block N and false at block N+1 (or the opposite).
-     */
+    
     function isValidERC1271SignatureNow(
         address signer,
         bytes32 digest,
@@ -431,10 +343,7 @@ abstract contract OFT3009 is OFT  {
 
 interface IERC1271 {
     /**
-     * @dev Should return whether the signature provided is valid for the provided data
-     * @param hash          Hash of the data to be signed
-     * @param signature     Signature byte array associated with the provided data hash
-     * @return magicValue   bytes4 magic value 0x1626ba7e when function passes
+     *  @return magicValue   bytes4 magic value 0x1626ba7e when function passes
      */
     function isValidSignature(bytes32 hash, bytes memory signature)
         external

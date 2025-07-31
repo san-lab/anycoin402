@@ -2,6 +2,7 @@ package facilitator
 
 import (
 	"fmt"
+	"math/big"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -10,8 +11,9 @@ import (
 )
 
 type MarkupQuery struct {
-	Network string `form:"network" binding:"required"`
-	Scheme  string `form:"scheme" binding:"required"`
+	Network string  `form:"network" binding:"required"`
+	Scheme  string  `form:"scheme" binding:"required"`
+	DstEid  *uint32 `form:"dstEid"` // Optional parameter
 }
 
 func getMarkup(c *gin.Context) {
@@ -26,11 +28,19 @@ func getMarkup(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "scheme/network pair not found"})
 		return
 	}
+	markup := new(big.Int)
 
-	markup, err := evmbinding.GetMarkup(query.Network, scheme.Asset, keyfile.Address)
+	if query.DstEid == nil {
+		markup, err = evmbinding.GetMarkup(query.Network, scheme.Asset, keyfile.Address)
+
+	} else {
+		markup, err = evmbinding.GetDetailedMarkup(query.Network, scheme.Asset, *query.DstEid, keyfile.Address)
+
+	}
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("failed to get nonce: %v", err),
+			"error": fmt.Sprintf("failed to get the markup: %v", err),
 		})
 		return
 	}
@@ -38,6 +48,7 @@ func getMarkup(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"network": query.Network,
 		"scheme":  query.Scheme,
+		"dstEid":  markup.String(),
 		"markup":  markup.String(),
 	})
 }

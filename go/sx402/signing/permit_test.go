@@ -14,7 +14,7 @@ import (
 )
 
 func TestPermit(t *testing.T) {
-	permit := new(all712.Permit)
+	permit := new(all712.PermitMessage)
 	permit.Domain.ChainID = big.NewInt(84532)
 	permit.Domain.Name = "USDC"
 	permit.Domain.Version = "2"
@@ -63,7 +63,7 @@ func TestPaymentHeader(t *testing.T) {
 		t.Error()
 		return
 	}
-	permit := new(all712.Permit)
+	permit := new(all712.PermitMessage)
 	err = json.Unmarshal(ppld.Payload, permit)
 	if err != nil {
 		t.Error()

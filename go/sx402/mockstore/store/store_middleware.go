@@ -46,46 +46,37 @@ func X402Middleware(c *gin.Context) {
 	usdpricei := europrice * 11 / 10
 	usdprice := fmt.Sprintf("%v", usdpricei)
 
-	accepts := []*types.PaymentRequirements{}
+	ac := Accepts{}
 
-	addRequirement(schemes.Scheme_Exact_USDC, evmbinding.Base_sepolia, resourceURI, usdprice, &accepts)
-	addRequirement(schemes.Scheme_Exact_USDC, evmbinding.Amoy, resourceURI, usdprice, &accepts)
-
-	addRequirement(schemes.Scheme_Exact_EURS, evmbinding.Base_sepolia, resourceURI, price, &accepts)
-	addRequirement(schemes.Scheme_Exact_EURS, evmbinding.Arbitrum_sepolia, resourceURI, price, &accepts)
-	addRequirement(schemes.Scheme_Payer0_toArbitrum, evmbinding.Base_sepolia, resourceURI, price, &accepts)
-	addRequirement(schemes.Scheme_Payer0_toBase, evmbinding.Arbitrum_sepolia, resourceURI, price, &accepts)
+	ac.addRequirement(schemes.Scheme_Exact_USDC, evmbinding.Base_sepolia, resourceURI, usdprice)
+	ac.addRequirement(schemes.Scheme_Exact_USDC, evmbinding.Amoy, resourceURI, usdprice)
+	/*
+		addRequirement(schemes.Scheme_Exact_EURS, evmbinding.Base_sepolia, resourceURI, price, &accepts)
+		addRequirement(schemes.Scheme_Exact_EURS, evmbinding.Arbitrum_sepolia, resourceURI, price, &accepts)
+		addRequirement(schemes.Scheme_Payer0_toArbitrum, evmbinding.Base_sepolia, resourceURI, price, &accepts)
+		addRequirement(schemes.Scheme_Payer0_toBase, evmbinding.Arbitrum_sepolia, resourceURI, price, &accepts)
+		addRequirement(schemes.Scheme_Permit_USDC, evmbinding.Base_sepolia, resourceURI, usdprice, &accepts)
+		//HACK
+	*/
 
 	//try to get markup
-	priceWithMarkupi := europrice
-	markup := 0
-	markupQuery := fmt.Sprintf("%s/markup?scheme=%s&network=%s", facilitatorURI, schemes.Scheme_Payer0M_toBase, evmbinding.Arbitrum_sepolia)
-	resp, err := http.Get(markupQuery)
-	if err != nil {
-		log.Println(err)
-	} else {
-		var result MarkupResponse
-		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-			fmt.Println(err)
-		} else {
-			markup, err = strconv.Atoi(result.Markup)
-			if err != nil {
-				log.Println(err)
-			}
-		}
-		priceWithMarkupi += markup
 
-	}
-	priceWithMarkup := fmt.Sprintf("%v", priceWithMarkupi)
+	priceWithMarkup := GetPriceWithMarkupAsString(europrice, schemes.Scheme_Payer0Plus_toBase, evmbinding.Arbitrum_sepolia, "40245")
 
-	addRequirement(schemes.Scheme_Payer0M_toBase, evmbinding.Arbitrum_sepolia, resourceURI, priceWithMarkup, &accepts)
+	ac.addRequirement(schemes.Scheme_Payer0Plus_toBase, evmbinding.Arbitrum_sepolia, resourceURI, priceWithMarkup)
+
+	prWiM := GetPriceWithMarkupAsString(europrice, schemes.Scheme_Payer0Plus_toArbitrum, evmbinding.Base_sepolia, "40231")
+	//ac.addRequirement(schemes.Scheme_Payer0Plus_toArbitrum, evmbinding.Base_sepolia, resourceURI, prWiM)
+	ac.addSchemeInstance(schemes.P0_Base_toArbitrum, resourceURI, prWiM)
+
+	ac.addSchemeInstance(schemes.P0_OP_toBase, resourceURI, price)
 
 	if paymentHeader == "" {
 
 		response := gin.H{
 			"x402Version": 1,
 			"error":       "X-PAYMENT header is required",
-			"accepts":     accepts,
+			"accepts":     ac,
 		}
 		c.JSON(http.StatusPaymentRequired, response)
 		c.Abort()
@@ -101,7 +92,7 @@ func X402Middleware(c *gin.Context) {
 		return
 	}
 
-	for _, req := range accepts {
+	for _, req := range ac {
 		if req.Network == headerPayload.Network && req.Scheme == headerPayload.Scheme {
 			env.PaymentRequirements = req
 			break
@@ -141,7 +132,7 @@ func X402Middleware(c *gin.Context) {
 		c.Set("settleReponse", settleResponse)
 		c.Set("network", headerPayload.Network)
 		explorer := evmbinding.ExplorerURLs[headerPayload.Network]
-		if strings.HasPrefix(headerPayload.Scheme, "payer0") {
+		if strings.HasPrefix(headerPayload.Scheme, "payer0") || strings.HasPrefix(headerPayload.Scheme, "PZ_") {
 			explorer = "https://testnet.layerzeroscan.com/"
 		}
 		c.Set("explorer", explorer)
@@ -219,18 +210,6 @@ func settlePayment(env *all712.Envelope) (*types.SettleResponse, error) {
 	return stres, nil
 }
 
-func addRequirement(scheme_name, network, resourceURI, price string, accepts *[]*types.PaymentRequirements) bool {
-	scheme, err := schemes.GetScheme(scheme_name, network)
-	if err != nil {
-		log.Println(err)
-		return false
-	} else {
-
-		*accepts = append(*accepts, scheme.Requirement(resourceURI, price, store_wallet))
-	}
-	return true
-}
-
 type MarkupResponse struct {
 	Markup string `json:"markup"`
 }
@@ -249,4 +228,29 @@ func unmarshallXPaymentHeader(header string) (ppld *all712.PaymentPayload, err e
 	}
 	err = json.Unmarshal(headerbts, ppld)
 	return
+}
+
+func GetPriceWithMarkupAsString(price int, scheme_name, network, dstEid string) string {
+	markup := 0
+	markupQuery := fmt.Sprintf("%s/markup?scheme=%s&network=%s", facilitatorURI, scheme_name, network)
+	if len(dstEid) > 0 {
+		markupQuery += "&dstEid=" + dstEid
+	}
+	resp, err := http.Get(markupQuery)
+	if err != nil {
+		log.Println(err)
+	} else {
+		var result MarkupResponse
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			fmt.Println(err)
+		} else {
+			markup, err = strconv.Atoi(result.Markup)
+			if err != nil {
+				log.Println(err)
+			}
+		}
+		price += markup
+
+	}
+	return fmt.Sprintf("%v", price)
 }
