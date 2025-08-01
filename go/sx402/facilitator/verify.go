@@ -35,17 +35,32 @@ func verifyHandler(c *gin.Context) {
 	}
 	envelope := enlp.(all712.Envelope)
 
-	switch envelope.PaymentPayload.Scheme {
-	case schemes.Scheme_Exact_USDC, schemes.Scheme_Exact_EURC, schemes.Scheme_Exact_EURS:
+	scheme, err := schemes.GetScheme(envelope.PaymentPayload.Scheme, envelope.PaymentPayload.Network)
+	if err != nil {
+		response := types.VerifyResponse{}
+		reason := "Unsupported Scheme/Network pair: " + envelope.PaymentPayload.Scheme
+		response.InvalidReason = &reason
+		response.Payer = &envelope.PaymentRequirements.PayTo
+		c.JSON(http.StatusOK, response)
+		c.Abort()
+		return
+	}
+
+	switch scheme.Type {
+	case schemes.ExactType:
 		VerifyExactEnvelope(c, &envelope)
-	case schemes.Scheme_Permit_USDC:
+	case schemes.PermitType:
 		VerifyPermitEnvelope(c, &envelope)
-	case schemes.Scheme_Payer0_toArbitrum, schemes.Scheme_Payer0_toBase, schemes.Scheme_Payer0M_toBase:
+	case schemes.Payer0Legacy:
 		VerifyPayer0Envelope(c, &envelope)
-	case schemes.Scheme_Payer0Plus_toBase, schemes.Scheme_Payer0Plus_toArbitrum, schemes.Scheme_Payer0Plus_toAmoy, schemes.Scheme_Payer0Plus_toOP:
+	case schemes.Payer0Type:
 		VerifyCrossChainScheme(c, &envelope)
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported Scheme " + envelope.PaymentPayload.Scheme})
+		response := types.VerifyResponse{}
+		reason := "Unsupported Scheme: " + envelope.PaymentPayload.Scheme
+		response.InvalidReason = &reason
+		response.Payer = &envelope.PaymentRequirements.PayTo
+		c.JSON(http.StatusOK, response)
 		c.Abort()
 		return
 	}

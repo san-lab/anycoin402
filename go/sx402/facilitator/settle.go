@@ -65,7 +65,7 @@ func SettleHandler(c *gin.Context) {
 	envelope := enlp.(all712.Envelope)
 
 	switch envelope.PaymentPayload.Scheme {
-	case schemes.Scheme_Exact_EURC, schemes.Scheme_Exact_USDC, schemes.Scheme_Exact_EURS:
+	case schemes.Scheme_Exact_EURC, schemes.Scheme_Exact_USDC, schemes.Scheme_Exact_EURS, schemes.Scheme_Exact_Draft:
 		SettleExactScheme(c, &envelope)
 	case schemes.Scheme_Permit_USDC:
 		SettlePermitScheme(c, &envelope)
@@ -178,7 +178,7 @@ func SettleExactScheme(c *gin.Context, envelope *all712.Envelope) {
 		log.Println("error executing settlement", err)
 		reason := fmt.Sprintf("Error parsing ABI: %s", err.Error())
 		response.ErrorReason = &reason
-		c.JSON(http.StatusInternalServerError, response)
+		c.JSON(http.StatusOK, response)
 		//c.Abort()
 		return
 	}

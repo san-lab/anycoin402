@@ -35,7 +35,7 @@ func TestParseTrAuth(t *testing.T) {
 
 func TestMarkup(t *testing.T) {
 	tokenA := "0x7AE6D004cd29570974357f30c016f8ea3e1A628A"
-	tokenB := "0xd4A90f96d8626e7Be636F1CFe843005867cA4eAe"
+	tokenB := "0xE6280F5EED02505D7e5cE762E35C878A99b54ac2"
 
 	m, err := GetDetailedMarkup(Base_sepolia, tokenA, 40231, "0xfAc178B1C359D41e9162A1A6385380de96809048")
 	if err != nil {
@@ -43,7 +43,7 @@ func TestMarkup(t *testing.T) {
 		return
 	}
 	fmt.Println(m)
-	m, err = GetMarkup(Base_sepolia, tokenB, "0xfAc178B1C359D41e9162A1A6385380de96809048")
+	m, err = GetMarkup(OP_Sepolia, tokenB, "0xfAc178B1C359D41e9162A1A6385380de96809048")
 	if err != nil {
 		t.Error(err)
 		return

@@ -132,26 +132,11 @@ contract MyOFT3009CC is OFT3009CC {
 
         _markAuthorizationAsUsed(_from, nonce);
         _transfer(_from, msg.sender, _sendParam.amountLD);
-        _send(_sendParam, _fee, _refundAddress);
+        SendParam memory newSendPAram = _sendParam;
+        newSendPAram.amountLD = _sendParam.amountLD - markups[msg.sender][_dstEid];
+        _send(newSendParam, _fee, _refundAddress);
         return true;
     }
-
-    function _debitView(
-        uint256 _amountLD,
-        uint256 _minAmountLD,
-        uint32 _dstEid
-    ) internal view override returns (uint256 amountSentLD, uint256 amountReceivedLD) {
-        // @dev Remove the dust so nothing is lost on the conversion between chains with different decimals for the token.
-        amountSentLD = _removeDust(_amountLD);
-        // @dev The amount to send is the same as amount received in the default implementation.
-        amountReceivedLD = amountSentLD - markups[msg.sender][_dstEid];
-
-        // @dev Check for slippage.
-        if (amountReceivedLD < _minAmountLD) {
-            revert SlippageExceeded(amountReceivedLD, _minAmountLD);
-        }
-    }
-
 
     function HashCCData(address from, address to, 
             uint256 amountLD, uint256 minAmountLD, uint256 dstEid, 

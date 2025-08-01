@@ -50,6 +50,8 @@ func X402Middleware(c *gin.Context) {
 
 	ac.addRequirement(schemes.Scheme_Exact_USDC, evmbinding.Base_sepolia, resourceURI, usdprice)
 	ac.addRequirement(schemes.Scheme_Exact_USDC, evmbinding.Amoy, resourceURI, usdprice)
+
+	ac.addSchemeInstance(schemes.ExactEURMOnOp, resourceURI, price)
 	/*
 		addRequirement(schemes.Scheme_Exact_EURS, evmbinding.Base_sepolia, resourceURI, price, &accepts)
 		addRequirement(schemes.Scheme_Exact_EURS, evmbinding.Arbitrum_sepolia, resourceURI, price, &accepts)
