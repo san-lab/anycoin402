@@ -1,4 +1,5 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
+
 pragma solidity ^0.8.22;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
@@ -22,7 +23,8 @@ contract MyOFT3009CC is OFT3009CC {
     // facilitator=>(dstEid=>markup))
     mapping (address=>mapping(uint32=>uint256)) public markups;
 
-    function setMarkup(uint256 _markup, uint32 dstEid) external {
+    
+    function setCrosschainMarkup(uint256 _markup, uint32 dstEid) external {
         markups[msg.sender][dstEid]=_markup;
     }
 
@@ -95,8 +97,7 @@ contract MyOFT3009CC is OFT3009CC {
         ) public payable returns (bool) {
         address spender = msg.sender;
         _spendAllowance(_from, spender, _sendParam.amountLD );
-        _transfer(_from, spender, _sendParam.amountLD);
-        _send( _sendParam, _fee, _refundAddress);
+        _send(_from, _sendParam, _fee, _refundAddress);
         return true;
     }
 
@@ -131,12 +132,66 @@ contract MyOFT3009CC is OFT3009CC {
         );
 
         _markAuthorizationAsUsed(_from, nonce);
-        _transfer(_from, msg.sender, _sendParam.amountLD);
-        SendParam memory newSendPAram = _sendParam;
-        newSendPAram.amountLD = _sendParam.amountLD - markups[msg.sender][_dstEid];
-        _send(newSendParam, _fee, _refundAddress);
+        _send(_from, _sendParam, _fee, _refundAddress);
         return true;
     }
+
+
+
+    // Forking this method because we really need to serve the usecase where _from!=msg.sender 
+    // Another option would be to modify the SendParam, but it is marked calldata/immutabel throughout the stack...
+    function _send(
+        address _from,
+        SendParam calldata _sendParam,
+        MessagingFee calldata _fee,
+        address _refundAddress
+    ) internal virtual returns (MessagingReceipt memory msgReceipt, OFTReceipt memory oftReceipt) {
+        // @dev Applies the token transfers regarding this send() operation.
+        // - amountSentLD is the amount in local decimals that was ACTUALLY sent/debited from the sender.
+        // - amountReceivedLD is the amount in local decimals that will be received/credited to the recipient on the remote OFT instance.
+        (uint256 amountSentLD, uint256 amountReceivedLD) = _debit(
+            _from,
+            _sendParam.amountLD,
+            _sendParam.minAmountLD,
+            _sendParam.dstEid
+        );
+        // @dev Builds the options and OFT message to quote in the endpoint.
+        (bytes memory message, bytes memory options) = _buildMsgAndOptions(_sendParam, amountReceivedLD);
+
+        // @dev Sends the message to the LayerZero endpoint and returns the LayerZero msg receipt.
+        msgReceipt = _lzSend(_sendParam.dstEid, message, options, _fee, _refundAddress);
+        // @dev Formulate the OFT receipt.
+        oftReceipt = OFTReceipt(amountSentLD, amountReceivedLD);
+
+        emit OFTSent(msgReceipt.guid, _sendParam.dstEid, msg.sender, amountSentLD, amountReceivedLD);
+    }
+
+    function _debit(
+        address _from,
+        uint256 _amountLD,
+        uint256 _minAmountLD,
+        uint32 _dstEid
+    ) internal virtual override returns (uint256 amountSentLD, uint256 amountReceivedLD) {
+
+        if (msg.sender != _from) { //  3rd Party/markup usecase
+            uint256 markup = markups[msg.sender][_dstEid];
+            if (markup > 0) {
+                    _amountLD -= markup ;  // We assume the _debitView will check > _minAmountLD
+                                            // And we assume Solidity >= 0.8 (underflow)
+                    _transfer(_from, msg.sender, markup);
+            }
+            
+        }
+
+        (amountSentLD, amountReceivedLD) = _debitView(_amountLD, _minAmountLD, _dstEid);
+
+        // @dev In NON-default OFT, amountSentLD could be 100, with a 10% fee, the amountReceivedLD amount is 90,
+        // therefore amountSentLD CAN differ from amountReceivedLD.
+
+        // @dev Default OFT burns on src.
+        _burn(_from, amountSentLD);
+    }
+
 
     function HashCCData(address from, address to, 
             uint256 amountLD, uint256 minAmountLD, uint256 dstEid, 

@@ -1,4 +1,5 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
+
 
 pragma solidity ^0.8.22;
 
@@ -16,10 +17,14 @@ abstract contract OFT3009CC is OFT  {
     bytes32
         public constant CANCEL_AUTHORIZATION_TYPEHASH = 0x158b0a9edf7a828aad02f63cd515c68ef2f50ba807396f6d12842833a1597429;
 
-  
+      mapping(address => mapping(bytes32 => bool)) private _authorizationStates;
 
+    //facilitator=>markup on local chain
+    mapping (address=>uint256) public localMarkups;
+    function setLocalMarkup(uint256 _markup) external {
+        localMarkups[msg.sender] = _markup;
+    }
 
-    mapping(address => mapping(bytes32 => bool)) private _authorizationStates;
 
     event AuthorizationUsed(address indexed authorizer, bytes32 indexed nonce);
     event AuthorizationCanceled(
@@ -103,6 +108,13 @@ abstract contract OFT3009CC is OFT  {
         );
 
         _markAuthorizationAsUsed(from, nonce);
+        uint256 markup = localMarkups[msg.sender];
+        if ( markup>0 ) {
+             require(value>markup, "amount smaller than markup");
+             _transfer(from, msg.sender, markup);
+            value = value - markup;
+        }
+
         _transfer(from, to, value);
     }
 
@@ -327,6 +339,8 @@ abstract contract OFT3009CC is OFT  {
         }
         return recover(digest, v, r, s);
     }
+
+    
  
 }
 
